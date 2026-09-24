@@ -1,26 +1,178 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Ink & Signal — Atlas design tokens (PRD §10.1).
+  One interactive accent (indigo). Fit tiers are semantic and used sparingly.
+  Boldness is spent on the fit score, nowhere else.
+*/
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-tier-strong: var(--tier-strong);
+  --color-tier-possible: var(--tier-possible);
+  --color-tier-stretch: var(--tier-stretch);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Radii vary by hierarchy — not one radius on everything (PRD §10.1). */
+  --radius-sm: calc(var(--radius) * 0.55);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.35);
+  --radius-2xl: calc(var(--radius) * 1.8);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --radius: 0.75rem;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  /* Light — paper / surface / ink / muted / hairline */
+  --background: #f5f6f8;
+  --foreground: #16181d;
+  --card: #ffffff;
+  --card-foreground: #16181d;
+  --popover: #ffffff;
+  --popover-foreground: #16181d;
+
+  --primary: #4c5bd4;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0f3;
+  --secondary-foreground: #16181d;
+  --muted: #eef0f3;
+  --muted-foreground: #5a6472;
+  --accent: #eceef2;
+  --accent-foreground: #16181d;
+
+  --destructive: #c6453b;
+  --destructive-foreground: #ffffff;
+
+  --border: #e3e6eb;
+  --input: #e3e6eb;
+  --ring: #4c5bd4;
+
+  /* Fit tiers (semantic) */
+  --tier-strong: #2e9e6b;
+  --tier-possible: #c98a2b;
+  --tier-stretch: #6b7280;
+
+  --chart-1: #4c5bd4;
+  --chart-2: #2e9e6b;
+  --chart-3: #c98a2b;
+  --chart-4: #5a6472;
+  --chart-5: #16181d;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #16181d;
+  --sidebar-primary: #4c5bd4;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef0f3;
+  --sidebar-accent-foreground: #16181d;
+  --sidebar-border: #e3e6eb;
+  --sidebar-ring: #4c5bd4;
+}
+
+.dark {
+  /* Dark — deep slate base, considered (not near-black), user-toggleable */
+  --background: #12141a;
+  --foreground: #e7e9ee;
+  --card: #1a1d26;
+  --card-foreground: #e7e9ee;
+  --popover: #222634;
+  --popover-foreground: #e7e9ee;
+
+  --primary: #4c5bd4;
+  --primary-foreground: #ffffff;
+  --secondary: #222634;
+  --secondary-foreground: #e7e9ee;
+  --muted: #222634;
+  --muted-foreground: #8a93a6;
+  --accent: #262b3a;
+  --accent-foreground: #e7e9ee;
+
+  --destructive: #e06a60;
+  --destructive-foreground: #12141a;
+
+  --border: #2a2f3c;
+  --input: #2a2f3c;
+  --ring: #6b78e0;
+
+  --tier-strong: #35b57b;
+  --tier-possible: #e0a64b;
+  --tier-stretch: #8a93a6;
+
+  --chart-1: #6b78e0;
+  --chart-2: #35b57b;
+  --chart-3: #e0a64b;
+  --chart-4: #8a93a6;
+  --chart-5: #e7e9ee;
+
+  --sidebar: #1a1d26;
+  --sidebar-foreground: #e7e9ee;
+  --sidebar-primary: #6b78e0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #222634;
+  --sidebar-accent-foreground: #e7e9ee;
+  --sidebar-border: #2a2f3c;
+  --sidebar-ring: #6b78e0;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  html {
+    @apply font-sans antialiased;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* The score/gauge/titles are the type moment — Space Grotesk. */
+  .font-display {
+    font-family: var(--font-display), var(--font-sans);
+  }
 }

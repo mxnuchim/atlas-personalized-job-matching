@@ -1,0 +1,27 @@
+# Local development database only.
+# The Next.js app itself is NOT containerized (see PRD §12) — run it with `npm run dev`.
+# In production, DATABASE_URL points at Neon; this file is for local dev parity.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: atlas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: atlas
+      POSTGRES_DB: atlas
+    # Host port 5433 (not 5432) to avoid clashing with any native Postgres already
+    # running locally. DATABASE_URL points here; inside the container it's still 5432.
+    ports:
+      - "5433:5432"
+    volumes:
+      - atlas-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas -d atlas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  atlas-pgdata:

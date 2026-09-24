@@ -1,0 +1,31 @@
+import { pgEnum } from "drizzle-orm/pg-core";
+
+export const userRole = pgEnum("user_role", ["owner", "admin"]);
+
+export const sourceKind = pgEnum("source_kind", ["greenhouse", "lever", "ashby", "rss", "api"]);
+
+export const strengthKind = pgEnum("strength_kind", ["core", "differentiator"]);
+
+export const matchTier = pgEnum("match_tier", ["strong", "possible", "stretch"]);
+
+export const draftStatus = pgEnum("draft_status", [
+  "pending",
+  "approved",
+  "skipped",
+  "sent",
+  "failed",
+]);
+
+export const outreachChannel = pgEnum("outreach_channel", ["email", "apply_link"]);
+
+export const outreachStatus = pgEnum("outreach_status", [
+  "drafted",
+  "sent",
+  "replied",
+  "interview",
+  "offer",
+  "rejected",
+  "closed",
+]);
+
+export const runStatus = pgEnum("run_status", ["ok", "partial", "failed"]);
