@@ -271,3 +271,34 @@ combined with any caller signal, fresh per attempt. A timeout rejects with
 
 **Files.** `src/lib/llm/{client,config}.ts`, `src/lib/env.ts`, `.env.example`,
 `src/lib/llm/client.test.ts`
+
+---
+
+## 2026-09-25 10:05 — The docs hook blocked a session whose ledger was current
+
+**Context.** The Stop hook fired at the end of the M2 session and blocked it for not
+updating the docs ledger — which had in fact been updated and committed. The hook was
+working; its logic was wrong. Useful: it caught its own bug the first time it ran for real.
+
+**Action.** Three defects, all found by that one false positive.
+
+1. **It only watched `Write|Edit`.** Most of the ledger updates that session went in
+   through Bash — heredocs and inline python — which the matcher never saw. It now also
+   inspects `tool_input.command`, so a file written any way still counts.
+2. **It accumulated for the whole session**, so writing the docs never cleared the debt.
+   The question is "is the ledger current?", not "were docs ever touched?". A docs write
+   now resets the flag.
+3. **Its source-path regex excluded `/` before `src/`**, so an absolute path — exactly
+   what the file tools pass — never matched. Found only because fixing (1) and (2) made
+   everything silently pass, which is its own kind of broken.
+
+**Result.** Twelve cases green, driven from a Python harness rather than shell: no
+activity, src via Write, src then docs via heredoc, src via Bash python, src via sed then
+docs via Write, unrelated Bash, non-src files, CSS as source, block-once, never-twice,
+the `stop_hook_active` guard, and malformed stdin.
+
+The shell harness itself cost more time than the hook did — zsh's `echo` interprets `\n`
+inside the JSON payload, which corrupts it before `jq` ever sees it. Second time that
+exact trap appeared today; see LEARNINGS.
+
+**Files.** `.claude/hooks/{record-touch,require-docs}.sh`

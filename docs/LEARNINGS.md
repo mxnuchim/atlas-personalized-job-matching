@@ -304,3 +304,37 @@ never settled. Real `fetch` checks `signal.aborted` up front.
 **Rule.** Any fake that honours an `AbortSignal` must reject immediately when
 `signal.aborted` is already true, then subscribe. Otherwise it models a signal that can
 only be aborted late, and tests the wrong thing.
+
+---
+
+## 2026-09-25 10:05 — zsh's `echo` corrupts JSON payloads in test harnesses
+
+**Problem.** Twice today a correct script looked broken because `jq` reported *"Invalid
+string: control characters from U+0000 through U+001F must be escaped"* on output that
+was in fact valid JSON.
+
+**Root cause.** `echo "$json" | jq` under zsh. The builtin `echo` interprets backslash
+escapes, so every `\n` inside a JSON string becomes a real newline — an unescaped control
+character, which is exactly what the error says. The script under test was fine both times.
+
+**Fix.** `printf '%s' "$json" | jq`, or write to a file, or drive the harness from Python.
+
+**Rule.** Never pipe JSON through `echo`. When a hook or script "emits invalid JSON",
+verify the raw bytes (`> file; jq . file`) before touching the script — the harness is the
+likelier culprit.
+
+---
+
+## 2026-09-25 10:05 — A guard that passes everything is as broken as one that fails
+
+**Problem.** After fixing two real bugs in the docs hook, every test case returned
+"allow" — including the ones that had to block. The fixes looked like they had worked.
+
+**Root cause.** The source-path regex used `(^|[^a-zA-Z0-9_./-])src/`, whose negated class
+excludes `/`. Every path the file tools pass is absolute, so `/src/` never matched and the
+hook could not fire at all.
+
+**Rule.** Assert both directions. A guard test needs cases that must block *and* cases
+that must not; checking only the happy path cannot distinguish "correctly permissive" from
+"completely inert". This is the same lesson as tripping the boundary test deliberately —
+it just cost a second time because the test only asserted one side.
