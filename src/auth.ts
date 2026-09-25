@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 import { getUserByEmail } from "@/db/queries/users";
-import { verifyPassword } from "@/lib/password";
+import { DECOY_HASH, verifyPassword } from "@/lib/password";
 import { loginSchema } from "@/lib/validation";
 
 import { authConfig } from "./auth.config";
@@ -20,10 +20,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!parsed.success) return null;
 
         const user = await getUserByEmail(parsed.data.email);
-        if (!user) return null;
 
-        const valid = await verifyPassword(user.passwordHash, parsed.data.password);
-        if (!valid) return null;
+        // Always pay the Argon2 cost, present user or not (see DECOY_HASH).
+        const valid = await verifyPassword(user?.passwordHash ?? DECOY_HASH, parsed.data.password);
+        if (!user || !valid) return null;
 
         return {
           id: user.id,
