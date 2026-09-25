@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 const STAGE_TOKEN: Record<(typeof FUNNEL_ORDER)[number], string> = {
   drafted: "--tier-stretch",
   sent: "--primary",
+  bounced: "--destructive",
   replied: "--tier-strong",
   interview: "--tier-strong",
   offer: "--tier-strong",
@@ -28,6 +29,7 @@ const STAGE_TOKEN: Record<(typeof FUNNEL_ORDER)[number], string> = {
 const STAGE_LABEL: Record<(typeof FUNNEL_ORDER)[number], string> = {
   drafted: "Drafted",
   sent: "Sent",
+  bounced: "Bounced",
   replied: "Replied",
   interview: "Interview",
   offer: "Offer",
@@ -58,7 +60,7 @@ export default async function PipelinePage() {
         />
       ) : (
         <>
-          <ol className="divide-border grid grid-cols-2 overflow-hidden rounded-xl border sm:grid-cols-4 lg:grid-cols-7">
+          <ol className="divide-border grid grid-cols-2 overflow-hidden rounded-xl border sm:grid-cols-4 lg:grid-cols-8">
             {FUNNEL_ORDER.map((stage) => (
               <li key={stage} className="border-r border-b px-4 py-3 last:border-r-0">
                 <span className="text-muted-foreground flex items-center gap-1.5 text-xs">

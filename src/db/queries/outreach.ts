@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { drafts, jobs, matches, outreach, type Outreach } from "@/db/schema";
@@ -23,6 +23,7 @@ export async function getSendStats(): Promise<SendStats> {
       totalSent: sql<number>`count(*) filter (where ${outreach.sentAt} is not null)::int`,
       sentToday: sql<number>`count(*) filter (where ${outreach.sentAt} >= date_trunc('day', now()))::int`,
       firstSentAt: sql<Date | null>`min(${outreach.sentAt})`,
+      bounces: sql<number>`count(*) filter (where ${outreach.bouncedAt} is not null)::int`,
     })
     .from(outreach);
 
@@ -30,7 +31,10 @@ export async function getSendStats(): Promise<SendStats> {
     sentToday: row?.sentToday ?? 0,
     totalSent: row?.totalSent ?? 0,
     firstSentAt: row?.firstSentAt ? new Date(row.firstSentAt) : null,
-    bounces: null,
+    bounces: row?.bounces ?? 0,
+    // Still null, and honestly so: a spam complaint goes to the receiving provider's
+    // feedback loop, which a plain Gmail account has no access to. Reporting 0% would
+    // claim a signal that does not exist. See docs/LEARNINGS.md.
     complaints: null,
   };
 }
@@ -67,6 +71,9 @@ export async function getOutreachForMatch(matchId: string): Promise<Outreach | n
 export async function recordSend(params: {
   matchId: string;
   channel?: Outreach["channel"];
+  /** Gmail's ids for the message just sent — the key replies are correlated by. */
+  gmailThreadId?: string | null;
+  gmailMessageId?: string | null;
 }): Promise<Outreach | null> {
   const existing = await getOutreachForMatch(params.matchId);
   const values = {
@@ -74,6 +81,11 @@ export async function recordSend(params: {
     channel: params.channel ?? ("email" as const),
     status: "sent" as const,
     sentAt: new Date(),
+    gmailThreadId: params.gmailThreadId ?? null,
+    gmailMessageId: params.gmailMessageId ?? null,
+    // A re-send starts the follow-up clock over.
+    repliedAt: null,
+    bouncedAt: null,
   };
 
   const [row] = existing
@@ -81,6 +93,49 @@ export async function recordSend(params: {
     : await db.insert(outreach).values(values).returning();
 
   return row ?? null;
+}
+
+/** Sends still awaiting an outcome — the reply poller's queue. */
+export async function getTrackedThreads(
+  limit = 200,
+): Promise<
+  {
+    id: string;
+    matchId: string;
+    gmailThreadId: string;
+    gmailMessageId: string | null;
+    sentAt: Date;
+  }[]
+> {
+  const rows = await db
+    .select({
+      id: outreach.id,
+      matchId: outreach.matchId,
+      gmailThreadId: outreach.gmailThreadId,
+      gmailMessageId: outreach.gmailMessageId,
+      sentAt: outreach.sentAt,
+    })
+    .from(outreach)
+    // Only `sent` is still open: replied and bounced are settled, and anything further
+    // along the funnel was moved by hand and should not be walked back automatically.
+    .where(and(eq(outreach.status, "sent"), isNotNull(outreach.gmailThreadId)))
+    .orderBy(desc(outreach.sentAt))
+    .limit(limit);
+
+  return rows.flatMap((r) =>
+    r.gmailThreadId && r.sentAt ? [{ ...r, gmailThreadId: r.gmailThreadId, sentAt: r.sentAt }] : [],
+  );
+}
+
+export async function markReplied(id: string, repliedAt: Date): Promise<void> {
+  await db.update(outreach).set({ status: "replied", repliedAt }).where(eq(outreach.id, id));
+}
+
+export async function markBounced(id: string, bouncedAt: Date, reason: string): Promise<void> {
+  await db
+    .update(outreach)
+    .set({ status: "bounced", bouncedAt, notes: reason.slice(0, 500) })
+    .where(eq(outreach.id, id));
 }
 
 /** The pipeline funnel (PRD §10.3 #5), newest movement first. */
@@ -135,6 +190,9 @@ export async function listPipeline(limit = 200): Promise<PipelineRow[]> {
 export const FUNNEL_ORDER = [
   "drafted",
   "sent",
+  // Sits where it happens — a bounce is a terminal failure of the send itself, not a
+  // later stage of a conversation that started.
+  "bounced",
   "replied",
   "interview",
   "offer",
@@ -152,6 +210,7 @@ export async function getFunnelCounts(): Promise<Record<Outreach["status"], numb
   const counts = {
     drafted: 0,
     sent: 0,
+    bounced: 0,
     replied: 0,
     interview: 0,
     offer: 0,

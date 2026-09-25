@@ -457,3 +457,43 @@ is not a dependency.
 **Rule.** A boundary that has only ever been satisfied has not been tested. Extend it to
 the next vendor early — the first thing it catches will be code you just wrote and
 believed was fine.
+
+---
+
+## 2026-09-25 11:40 — Complaint rate is not measurable from a plain Gmail account
+
+**Problem.** §11 requires monitoring complaints (< 0.1%) and auto-throttling if they
+climb. There is no way to do it with this setup.
+
+**Root cause.** A spam complaint is recorded by the *receiving* provider and surfaced
+through a feedback loop to the sending domain's operator. A regular Gmail account is not
+that operator. Gmail Postmaster Tools exposes a spam rate, but only for a domain you own
+and only above a volume threshold this app will never reach.
+
+**Fix.** None available — so it is reported as `unknown` rather than `0`. The guardrail
+renders "Complaint rate not monitored yet" and does not block, and the compensating
+controls are named: low volume, mandatory human approval, reply suppression.
+
+**Rule.** When a required signal cannot be obtained, say so in the interface. A metric
+rendered as 0% because nothing measured it is worse than an admitted gap — it converts
+an unknown into false reassurance, and nobody goes looking for it again.
+
+---
+
+## 2026-09-25 11:38 — Correlate on the provider's id, not on reconstruction
+
+**Problem.** Detecting a reply means knowing which inbound message answers which
+outreach. Matching on recipient address and timestamp is ambiguous the moment the same
+person is contacted about two roles, or replies from a different address.
+
+**Fix.** Store Gmail's `threadId` and `messageId` at send time. A reply lands in the
+same thread by definition, so correlation is a lookup rather than a heuristic.
+
+Two details that matter: `internalDate` (Gmail's own receipt time) is used rather than
+the `Date` header, which the sender controls and can be wrong or absent; and a dry run
+stores nulls rather than placeholder ids, or the poller chases a thread that does not
+exist forever.
+
+**Rule.** When an external system hands you an identifier for something you will need to
+find again, persist it at the moment you receive it. Reconstructing the link later is
+always a heuristic, and heuristics fail on exactly the edge cases that matter.

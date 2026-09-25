@@ -489,3 +489,49 @@ with `sent_at`, and a second send of the same draft was refused naming both reas
 `src/app/api/gmail/{connect,callback}/route.ts`, `src/app/(app)/pipeline/page.tsx`,
 `src/components/review-queue.tsx`, `src/db/queries/{outreach,drafts}.ts`,
 `src/lib/gmail/{config,index}.ts`, `src/app/(app)/settings/page.tsx`
+
+---
+
+## 2026-09-25 11:40 — M4c: reply and bounce detection
+
+**Context.** Two §11 rules were stated but not yet true. "Respect replies — stop all
+further contact once someone replies" only holds if replies are noticed, and bounce
+monitoring cannot auto-throttle on a number nobody measures. Until now both guardrails
+honestly reported "not monitored yet".
+
+**Action.**
+
+- **Correlation.** `outreach` gained `gmail_thread_id` / `gmail_message_id`, recorded at
+  send. A reply lands in the same Gmail thread, so the thread id is the only thing that
+  distinguishes a reply to *this* outreach from any other message in the mailbox. A dry
+  run stores nulls rather than placeholder ids — otherwise the poller would chase a
+  thread that does not exist, forever.
+- **`sending/classify.ts`** — pure, 20 tests. A bounce outranks a reply when both
+  appear: the message never reached a person, and treating it as contact would be wrong
+  in the direction that costs deliverability. Daemon senders are matched on the local
+  part so it holds across `googlemail.com`, a company MTA and `postmaster@` variants,
+  with a subject fallback for MTAs that reply under their own name. `internalDate` is
+  used rather than the `Date` header, which the sender controls.
+- **`pipeline/replies.ts`** — polls only outreach still in `sent`, so a verdict settles
+  a thread and a re-run costs one Gmail call per genuinely-open thread. Runs **first**
+  in the pipeline: a reply must suppress contact before the same run drafts anything new
+  for that role.
+- **`bounced`** is a real funnel stage now, not a rejection. `getSendStats` returns a
+  real bounce count, so the §11 threshold finally has something to threshold.
+
+**Result.** 174 tests green; lint, typecheck and build clean. Verified end to end against
+the live database with a stubbed thread: a send records its thread id and appears in the
+poll queue; a reply moves it to `replied`, stamps `replied_at`, makes `hasReplied()` true
+(which blocks the send guardrail) and removes it from the queue; a bounce moves it to
+`bounced`, stamps `bounced_at`, stores the reason, and increments the real bounce count.
+
+**An honest limitation, deliberately not papered over.** Complaint rate stays `null`.
+A spam complaint goes to the *receiving* provider's feedback loop, which a plain Gmail
+account has no access to — Postmaster Tools needs domain ownership and meaningful
+volume. Reporting 0% would claim a signal that does not exist. The guardrail therefore
+shows "not monitored yet" and does not block; the compensating controls are low volume,
+mandatory human approval, and reply suppression.
+
+**Files.** `src/lib/sending/classify.ts`, `src/lib/gmail/read.ts`,
+`src/pipeline/replies.ts`, `src/pipeline/run.ts`, `src/db/queries/outreach.ts`,
+`src/db/schema/{outreach,enums}.ts`, `src/lib/concurrency.ts`, `drizzle/0004`

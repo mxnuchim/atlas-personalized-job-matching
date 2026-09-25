@@ -10,6 +10,7 @@ import {
 } from "ai";
 import type { z } from "zod";
 
+import { mapWithConcurrency } from "@/lib/concurrency";
 import { log } from "@/lib/logger";
 
 import {
@@ -22,6 +23,9 @@ import {
 } from "./config";
 import { LlmError } from "./errors";
 import { estimateCostUsd } from "./pricing";
+
+// Re-exported so `@/lib/llm` stays the single import for pipeline stages.
+export { mapWithConcurrency };
 
 const logger = log("llm");
 
@@ -296,33 +300,6 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     }
     signal?.addEventListener("abort", onAbort, { once: true });
   });
-}
-
-/**
- * Bounded-concurrency map, preserving input order in the results. Replaces a serial
- * loop without letting a 50-item run open 50 sockets at a provider's rate limit.
- * Rejections are not swallowed — callers wrap each item's work in its own try/catch
- * so one failure records an error and the run continues (PRD §12).
- */
-export async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  limit: number,
-  worker: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const width = Math.max(1, Math.min(limit, items.length));
-  const results = new Array<R>(items.length);
-  let cursor = 0;
-
-  async function run(): Promise<void> {
-    while (cursor < items.length) {
-      const index = cursor;
-      cursor += 1;
-      results[index] = await worker(items[index]!, index);
-    }
-  }
-
-  await Promise.all(Array.from({ length: width }, run));
-  return results;
 }
 
 /** Running totals for a whole pipeline run. */

@@ -21,6 +21,9 @@ export const outreachChannel = pgEnum("outreach_channel", ["email", "apply_link"
 export const outreachStatus = pgEnum("outreach_status", [
   "drafted",
   "sent",
+  // Terminal and distinct from a rejection: the message never reached a person, so it
+  // counts against the §11 bounce budget rather than against the funnel.
+  "bounced",
   "replied",
   "interview",
   "offer",

@@ -135,7 +135,13 @@ export async function sendDraft(draftId: string): Promise<SendOutcome> {
     // Only mark sent after Gmail accepted it. The reverse order would record a send
     // that never happened, and reply detection would then wait forever.
     await markDraftSent(draftId);
-    await recordSend({ matchId: draft.matchId });
+    await recordSend({
+      matchId: draft.matchId,
+      // A dry run has no real thread; storing its placeholder ids would give the reply
+      // poller a thread that does not exist to chase forever.
+      gmailThreadId: result.dryRun ? null : result.threadId,
+      gmailMessageId: result.dryRun ? null : result.messageId,
+    });
 
     logger.info({ draftId, dryRun: result.dryRun }, "draft sent");
     return { ok: true, dryRun: result.dryRun };

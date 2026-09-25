@@ -17,6 +17,15 @@ export const outreach = pgTable("outreach", {
   status: outreachStatus().notNull().default("drafted"),
   sentAt: timestamp({ withTimezone: true }),
   repliedAt: timestamp({ withTimezone: true }),
+  bouncedAt: timestamp({ withTimezone: true }),
+
+  /**
+   * How a send is followed up. A reply lands in the same Gmail thread, so the thread id
+   * is the correlation key — without it there is no way to tell a reply to *this*
+   * outreach from any other message in the mailbox.
+   */
+  gmailThreadId: text(),
+  gmailMessageId: text(),
   notes: text(),
   updatedAt: updatedAt(),
 });

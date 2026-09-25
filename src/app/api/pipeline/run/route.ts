@@ -31,11 +31,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { runId, ingest, scoring, drafting, totals } = await runPipeline({
+    const { runId, ingest, scoring, drafting, replies, totals } = await runPipeline({
       scoreLimit,
       draftLimit,
     });
-    return NextResponse.json({ ok: true, runId, ingest, scoring, drafting, totals });
+    return NextResponse.json({ ok: true, runId, ingest, scoring, drafting, replies, totals });
   } catch (error) {
     // The run row is already closed as `failed` by runPipeline; this is the caller's copy.
     const message = error instanceof Error ? error.message : String(error);

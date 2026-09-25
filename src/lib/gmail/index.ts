@@ -7,6 +7,7 @@
  */
 
 export { sendEmail } from "./send";
+export { fetchThreadMessages } from "./read";
 export type { SendResult } from "./send";
 
 export {
