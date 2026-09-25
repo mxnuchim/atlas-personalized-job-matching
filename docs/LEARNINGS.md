@@ -497,3 +497,24 @@ exist forever.
 **Rule.** When an external system hands you an identifier for something you will need to
 find again, persist it at the moment you receive it. Reconstructing the link later is
 always a heuristic, and heuristics fail on exactly the edge cases that matter.
+
+---
+
+## 2026-09-25 11:50 — A variable name is a label, not an instruction
+
+**Problem.** Settings reported "Not connected — missing GOOGLE_CLIENT_ID,
+GMAIL_OAUTH_REFRESH_TOKEN. Visit /api/gmail/connect". Every word was accurate and it
+was still useless: the route was not a link, nothing said where those variables live,
+and nothing explained why a Google OAuth client is needed to send an email at all.
+
+**Root cause.** Reporting *state* was mistaken for providing *setup*. Naming what is
+missing is the easy half; the hard half is what to do about it, and that half was left
+to the reader.
+
+**Fix.** A stepped panel that ticks each prerequisite off as it is satisfied, with the
+exact redirect URI to register, the env lines to paste, and a real button for the
+consent flow.
+
+**Rule.** When configuration is missing, show the steps, not the variable names. If the
+interface names a route, make it a link. The test is whether someone could finish setup
+without leaving the page — if they have to ask, the page did not do its job.

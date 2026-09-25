@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { GmailSetup } from "@/components/gmail-setup";
 import { PageHeader } from "@/components/page-header";
 import { env } from "@/lib/env";
 import { gmailConfig } from "@/lib/gmail";
@@ -25,9 +26,7 @@ function configRows(): { label: string; value: string }[] {
     { label: "Sign-in", value: "Email & password" },
     {
       label: "Sending identity",
-      value: gmail.configured
-        ? gmail.sendingAddress
-        : `Not connected — missing ${gmail.missing.join(", ")}. Visit /api/gmail/connect`,
+      value: gmail.configured ? gmail.sendingAddress : "Not connected — see below",
     },
     {
       label: "Sending",
@@ -46,10 +45,14 @@ function configRows(): { label: string; value: string }[] {
 
 export default function SettingsPage() {
   const rows = configRows();
+  const gmail = gmailConfig();
 
   return (
     <div className="space-y-8">
       <PageHeader title="Settings" description="How Atlas is configured for you." />
+
+      {/* Setup instructions only while there is setup left to do. */}
+      {!gmail.configured && <GmailSetup missing={gmail.missing} appUrl={env.APP_URL} />}
 
       <dl className="divide-border overflow-hidden rounded-xl border">
         {rows.map((row) => (

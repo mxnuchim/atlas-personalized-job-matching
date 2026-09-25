@@ -96,9 +96,7 @@ export async function recordSend(params: {
 }
 
 /** Sends still awaiting an outcome — the reply poller's queue. */
-export async function getTrackedThreads(
-  limit = 200,
-): Promise<
+export async function getTrackedThreads(limit = 200): Promise<
   {
     id: string;
     matchId: string;

@@ -535,3 +535,29 @@ mandatory human approval, and reply suppression.
 **Files.** `src/lib/sending/classify.ts`, `src/lib/gmail/read.ts`,
 `src/pipeline/replies.ts`, `src/pipeline/run.ts`, `src/db/queries/outreach.ts`,
 `src/db/schema/{outreach,enums}.ts`, `src/lib/concurrency.ts`, `drizzle/0004`
+
+---
+
+## 2026-09-25 11:50 — Make connecting Gmail findable
+
+**Context.** Asked how to reach `/api/gmail/connect` and where `SENDING_ADDRESS` goes —
+and the honest answer was that there was no way to find out from inside the app.
+Settings rendered the literal string "Visit /api/gmail/connect" as plain text, not a
+link, and said nothing about what to set or where.
+
+**Action.** A `GmailSetup` panel on Settings: three numbered steps that tick off as each
+prerequisite is satisfied, with the exact redirect URI to register, the env lines to
+paste, a real **Connect Gmail** button (disabled until the OAuth client exists), and the
+`GMAIL_DRY_RUN` escape hatch. It disappears once the identity is connected.
+
+**Result.** Verified against the live config: step 1 correctly reports *done* — the
+OAuth client credentials were already present — while steps 2 and 3 remain open. The
+panel reflects real state rather than a static checklist.
+
+**Note for later.** OAuth was chosen because the PRD specifies it (§14, §15-D) and
+because reply detection needs read access regardless. A Gmail **App Password** over
+SMTP/IMAP would be materially less setup for a single-user app, at the cost of a
+credential that grants the whole mailbox rather than two scopes. Worth revisiting if the
+Cloud Console step proves to be friction.
+
+**Files.** `src/components/gmail-setup.tsx`, `src/app/(app)/settings/page.tsx`
