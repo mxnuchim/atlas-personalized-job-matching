@@ -7,7 +7,7 @@ import { ReviewQueue } from "@/components/review-queue";
 import { StatStrip } from "@/components/stat-strip";
 import { countDraftsByStatus, listDrafts } from "@/db/queries/drafts";
 import { getCurrentProfile } from "@/db/queries/profile";
-import { env } from "@/lib/env";
+import { assessDrafts } from "./send";
 
 export const metadata: Metadata = {
   title: "Review",
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 /** Server-rendered shell; the queue is a client island because it edits and decides. */
 export default async function ReviewPage() {
   const [drafts, counts, profile] = await Promise.all([
-    listDrafts("pending"),
+    listDrafts("awaiting"),
     countDraftsByStatus(),
     getCurrentProfile(),
   ]);
@@ -27,13 +27,17 @@ export default async function ReviewPage() {
     (profile?.strengths ?? []).map((s) => [s.key, s.label]),
   );
 
+  // The same computation the send gate runs, so the readout can never promise a send
+  // the server will refuse.
+  const decisions = await assessDrafts(drafts);
+
   return (
     <div className="space-y-8">
       <PageHeader
         title="Review"
         description={
           drafts.length > 0
-            ? `${drafts.length} awaiting your decision. Nothing sends without it.`
+            ? `${drafts.length} awaiting you. Nothing sends without your approval.`
             : "Drafts wait here for your decision."
         }
       />
@@ -53,11 +57,7 @@ export default async function ReviewPage() {
           description="Strong matches get a draft on the next run. Each one builds on the strengths that role rewards and cites something real you've done."
         />
       ) : (
-        <ReviewQueue
-          drafts={drafts}
-          strengthLabels={strengthLabels}
-          dailyCap={env.DAILY_SEND_CAP}
-        />
+        <ReviewQueue drafts={drafts} strengthLabels={strengthLabels} decisions={decisions} />
       )}
     </div>
   );

@@ -2,16 +2,19 @@
 
 import { useOptimistic, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { CheckIcon, ExternalLinkIcon, QuoteIcon, XIcon } from "lucide-react";
+import { CheckIcon, ExternalLinkIcon, QuoteIcon, SendIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { FitGauge } from "@/components/fit-gauge";
 import { TierChip } from "@/components/tier-chip";
 import { Button } from "@/components/ui/button";
 import type { DraftRow } from "@/db/queries/drafts";
+import type { SendDecision } from "@/lib/sending/guardrails";
 import {
   approveDraftAction,
   saveDraftEditAction,
+  sendDraftAction,
+  setRecipientAction,
   skipDraftAction,
 } from "@/app/(app)/review/actions";
 import { cn } from "@/lib/utils";
@@ -30,11 +33,12 @@ import { cn } from "@/lib/utils";
 export function ReviewQueue({
   drafts,
   strengthLabels,
-  dailyCap,
+  decisions,
 }: {
   drafts: DraftRow[];
   strengthLabels: Record<string, string>;
-  dailyCap: number;
+  /** Server-evaluated guardrails, keyed by draft id. Rendered, never re-derived. */
+  decisions: Record<string, SendDecision>;
 }) {
   // Optimistically removed ids. The server is the source of truth; this only hides a
   // card while its action is in flight, and React restores it if the action fails.
@@ -74,9 +78,10 @@ export function ReviewQueue({
             key={draft.id}
             draft={draft}
             strengthLabels={strengthLabels}
-            dailyCap={dailyCap}
+            decision={decisions[draft.id]}
             onApprove={() => runDecision(draft, approveDraftAction, "Approved")}
             onSkip={() => runDecision(draft, skipDraftAction, "Skipped")}
+            onSent={() => decide(draft.id)}
           />
         ))}
       </AnimatePresence>
@@ -87,20 +92,23 @@ export function ReviewQueue({
 function DraftCard({
   draft,
   strengthLabels,
-  dailyCap,
+  decision,
   onApprove,
   onSkip,
+  onSent,
 }: {
   draft: DraftRow;
   strengthLabels: Record<string, string>;
-  dailyCap: number;
+  decision: SendDecision | undefined;
   onApprove: () => void;
   onSkip: () => void;
+  onSent: () => void;
 }) {
   const reduced = useReducedMotion();
   const [editing, setEditing] = useState(false);
   const [body, setBody] = useState(draft.editedBody ?? draft.body);
   const [saving, startSaving] = useTransition();
+  const [sending, startSending] = useTransition();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const edited = draft.editedBody !== null;
@@ -120,6 +128,25 @@ function DraftCard({
   function cancel() {
     setBody(draft.editedBody ?? draft.body);
     setEditing(false);
+  }
+
+  function send() {
+    startSending(async () => {
+      const result = await sendDraftAction({ draftId: draft.id });
+      if (!result.ok) {
+        // Name every blocking guardrail, not just "cannot send" — the whole point of
+        // the readout is that you can tell *which* rule stopped it.
+        toast.error(result.error, {
+          description: result.blockedBy?.join(" · "),
+          duration: 8000,
+        });
+        return;
+      }
+      toast.success(
+        result.dryRun ? `Dry run — nothing left the mailbox` : `Sent to ${draft.company}`,
+      );
+      onSent();
+    });
   }
 
   return (
@@ -239,13 +266,22 @@ function DraftCard({
           </p>
         )}
 
-        <Guardrails recipient={draft.recipient} dailyCap={dailyCap} />
+        <RecipientField draft={draft} />
 
-        <div className="flex gap-2">
-          <Button size="sm" onClick={onApprove}>
-            <CheckIcon className="size-4" />
-            Approve
-          </Button>
+        <Guardrails decision={decision} />
+
+        <div className="flex flex-wrap gap-2">
+          {draft.status === "approved" ? (
+            <Button size="sm" onClick={send} disabled={sending || decision?.allowed === false}>
+              <SendIcon className="size-4" />
+              {sending ? "Sending…" : "Send"}
+            </Button>
+          ) : (
+            <Button size="sm" onClick={onApprove}>
+              <CheckIcon className="size-4" />
+              Approve
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={onSkip}>
             <XIcon className="size-4" />
             Skip
@@ -266,35 +302,85 @@ function DraftCard({
 }
 
 /**
- * What still stands between this draft and a send (PRD §10.3 #4). Shown now, while
- * sending does not exist, so the gap is visible rather than discovered in M4.
+ * Manual recipient entry. A job posting never carries a human's address, and guessing
+ * one bounces — §11 caps bounce at 2% because bounces cost sender reputation. Blank is
+ * an honest "not known yet"; the send button stays disabled until it is filled.
  */
-function Guardrails({ recipient, dailyCap }: { recipient: string | null; dailyCap: number }) {
-  const checks = [
-    {
-      ok: recipient !== null,
-      label: recipient ? `Recipient: ${recipient}` : "No recipient yet — sending lands in M4",
-    },
-    { ok: true, label: `Daily cap ${dailyCap}` },
-    { ok: true, label: "Auto-send off" },
-  ];
+function RecipientField({ draft }: { draft: DraftRow }) {
+  const [value, setValue] = useState(draft.recipient ?? "");
+  const [saving, startSaving] = useTransition();
+  const dirty = value.trim() !== (draft.recipient ?? "");
+
+  function save() {
+    startSaving(async () => {
+      const result = await setRecipientAction({ draftId: draft.id, recipient: value });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(value.trim() ? "Recipient saved" : "Recipient cleared");
+    });
+  }
+
+  return (
+    <div>
+      <Label>Recipient</Label>
+      <div className="mt-1.5 flex flex-wrap gap-2">
+        <input
+          type="email"
+          inputMode="email"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && dirty) {
+              e.preventDefault();
+              save();
+            }
+          }}
+          placeholder="name@company.com"
+          aria-label={`Recipient for ${draft.title}`}
+          className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 min-w-0 flex-1 rounded-lg border px-3 text-sm transition-colors focus-visible:ring-3 focus-visible:outline-none sm:max-w-xs"
+        />
+        {dirty && (
+          <Button size="sm" variant="secondary" onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What stands between this draft and a send (PRD §10.3 #4). These are the guardrails
+ * the server evaluated, rendered verbatim — not a second opinion computed here. An
+ * earlier version re-derived the cap in the browser and confidently displayed 30 while
+ * the warm-up ramp was enforcing 5.
+ */
+function Guardrails({ decision }: { decision: SendDecision | undefined }) {
+  if (!decision) return null;
 
   return (
     <ul className="flex flex-wrap items-center gap-x-4 gap-y-1">
-      {checks.map((check) => (
+      {decision.guardrails.map((check) => (
         <li
-          key={check.label}
+          key={check.id}
           className={cn(
             "flex items-center gap-1.5 text-xs",
-            check.ok ? "text-muted-foreground" : "text-foreground",
+            check.status === "fail" ? "text-foreground" : "text-muted-foreground",
           )}
         >
           <span
             aria-hidden
-            className={cn(
-              "size-1.5 rounded-full",
-              check.ok ? "bg-tier-strong" : "bg-tier-possible",
-            )}
+            className="size-1.5 rounded-full"
+            style={{
+              backgroundColor:
+                check.status === "pass"
+                  ? "var(--tier-strong)"
+                  : check.status === "fail"
+                    ? "var(--tier-possible)"
+                    : "var(--tier-stretch)",
+            }}
           />
           {check.label}
         </li>

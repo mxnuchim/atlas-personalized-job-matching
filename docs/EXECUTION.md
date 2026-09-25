@@ -433,9 +433,59 @@ Tightening the boundary patterns to be import-shaped was necessary: `env.ts` con
 the literal `"openai"` as a config enum value, and a vendor's name in a string is not a
 dependency.
 
-**Result.** 152 tests green; lint, typecheck and build clean. Nothing can send yet —
+**Result.** 154 tests green; lint, typecheck and build clean. Nothing can send yet —
 the action that calls `sendEmail` lands next.
 
 **Files.** `src/lib/sending/{warmup,guardrails,message}.ts`, `src/lib/gmail/*`,
 `src/db/queries/outreach.ts`, `src/db/queries/drafts.ts`, `src/lib/env.ts`,
 `eslint.config.mjs`, `src/lib/llm/boundary.test.ts`, `.env.example`
+
+---
+
+## 2026-09-25 11:25 — M4b: sending wired up, recipient entry, pipeline tracker
+
+**Context.** With the guardrails and the Gmail layer in place, connect them: manual
+recipient entry, a send action, the one-time OAuth flow, and the funnel tracker.
+
+**Action.**
+
+- **Recipient entry** on each review card. Blank is an honest "not known yet" — the
+  send button stays disabled rather than a guess going out. Enter saves.
+- **`sendDraft`** re-evaluates every §11 guardrail *immediately before* delivery, not
+  just when the page rendered: the daily cap in particular moves underneath a readout
+  that is seconds old. It marks the draft sent only **after** Gmail accepts, because the
+  reverse order records a send that never happened and reply detection would then wait
+  forever. A failure marks `failed`, which is not terminal for a human — the draft stays
+  visible and can be retried once the cause is fixed.
+- **`/api/gmail/{connect,callback}`** — the one-time consent flow. The refresh token is
+  displayed once for you to paste into `.env.local` and is deliberately *not* persisted:
+  §12 keeps secrets in env, and a long-lived Google refresh token in a database table is
+  a materially worse place for it. Both `gmail.send` and `gmail.readonly` are requested
+  at once so consent happens a single time — re-prompting later is friction that gets
+  skipped, and unmonitored bounces are a §11 violation.
+- **`/pipeline`** — the funnel (drafted → sent → replied → interview → offer/rejected),
+  with replies visibly halting chasing.
+- **Settings** now shows the sending identity, whether auto-send is on, and dry-run
+  state, so "why can't I send" is answerable without reading env by hand.
+
+**Result.** 154 tests green; lint, typecheck and build clean. The whole chain verified
+in dry run against the live database: guardrails blocked correctly at each stage, the
+message was built (958 bytes), the draft moved to `sent`, an `outreach` row was created
+with `sent_at`, and a second send of the same draft was refused naming both reasons.
+
+**Two defects the verification caught.**
+
+1. *The boundary test caught a real leak.* Both OAuth routes read Google secrets
+   directly. Fixed by moving that knowledge into `lib/gmail` — the layer now exports
+   `oauthClientReady()` and the env var *names*, so a route can explain what is missing
+   without ever touching a value.
+2. *The UI and the gate disagreed.* The card re-derived its guardrail strip from a raw
+   `dailyCap` prop and displayed "Daily cap 30" while the warm-up ramp was enforcing 5.
+   The page now runs the same `evaluateSend` the gate runs, in one batched pass, and the
+   card renders that verbatim. A readout that can promise a send the server refuses is
+   worse than no readout.
+
+**Files.** `src/app/(app)/review/{send.ts,actions.ts,page.tsx}`,
+`src/app/api/gmail/{connect,callback}/route.ts`, `src/app/(app)/pipeline/page.tsx`,
+`src/components/review-queue.tsx`, `src/db/queries/{outreach,drafts}.ts`,
+`src/lib/gmail/{config,index}.ts`, `src/app/(app)/settings/page.tsx`

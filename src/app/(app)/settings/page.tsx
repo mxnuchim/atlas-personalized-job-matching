@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/page-header";
 import { env } from "@/lib/env";
+import { gmailConfig } from "@/lib/gmail";
 import { MODELS, PROVIDER } from "@/lib/llm";
 import { RUN_HOURS } from "@/lib/schedule";
 
@@ -18,9 +19,23 @@ const schedule = RUN_HOURS.map((h) => `${String(h).padStart(2, "0")}:00`).join("
 // Built per request, not at module scope — module-scope values freeze at build time,
 // so a deploy-time env change would not show here.
 function configRows(): { label: string; value: string }[] {
+  const gmail = gmailConfig();
+
   return [
     { label: "Sign-in", value: "Email & password" },
-    { label: "Sending", value: "Manual approval only — auto-send is off" },
+    {
+      label: "Sending identity",
+      value: gmail.configured
+        ? gmail.sendingAddress
+        : `Not connected — missing ${gmail.missing.join(", ")}. Visit /api/gmail/connect`,
+    },
+    {
+      label: "Sending",
+      value: env.AUTO_SEND
+        ? "Auto-send flag is ON — every send still needs your approval"
+        : "Manual approval only — auto-send is off",
+    },
+    { label: "Dry run", value: env.GMAIL_DRY_RUN ? "On — nothing actually sends" : "Off" },
     { label: "Daily send cap", value: `${env.DAILY_SEND_CAP} / day` },
     { label: "Schedule", value: `${schedule} (${env.TZ})` },
     { label: "Model provider", value: PROVIDER },

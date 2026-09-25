@@ -9,7 +9,15 @@
 export { sendEmail } from "./send";
 export type { SendResult } from "./send";
 
-export { gmailConfig, isGmailConfigured, oauthClient, redirectUri, GMAIL_SCOPES } from "./config";
+export {
+  gmailConfig,
+  isGmailConfigured,
+  oauthClient,
+  oauthClientReady,
+  redirectUri,
+  GMAIL_SCOPES,
+  GMAIL_ENV,
+} from "./config";
 export type { GmailConfigOk, GmailConfigError } from "./config";
 
 export { GmailError, isGmailError, classifyGmailError } from "./errors";

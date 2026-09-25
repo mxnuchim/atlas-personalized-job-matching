@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { drafts, jobs, matches, outreach, type Outreach } from "@/db/schema";
@@ -43,6 +43,16 @@ export async function hasReplied(matchId: string): Promise<boolean> {
     .where(and(eq(outreach.matchId, matchId), eq(outreach.status, "replied")))
     .limit(1);
   return Boolean(row);
+}
+
+/** Matches whose thread already has a reply — batched, so a queue is one query. */
+export async function repliedMatchIds(matchIds: string[]): Promise<Set<string>> {
+  if (matchIds.length === 0) return new Set();
+  const rows = await db
+    .select({ matchId: outreach.matchId })
+    .from(outreach)
+    .where(and(inArray(outreach.matchId, matchIds), eq(outreach.status, "replied")));
+  return new Set(rows.map((r) => r.matchId));
 }
 
 export async function getOutreachForMatch(matchId: string): Promise<Outreach | null> {

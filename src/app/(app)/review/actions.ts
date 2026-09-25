@@ -3,9 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { canDecide, canEdit, decideDraft, getDraft, saveDraftEdit } from "@/db/queries/drafts";
+import {
+  canDecide,
+  canEdit,
+  decideDraft,
+  getDraft,
+  saveDraftEdit,
+  setDraftRecipient,
+} from "@/db/queries/drafts";
 import { log } from "@/lib/logger";
 import { requireSession } from "@/lib/session";
+import { recipientSchema } from "@/lib/sending/guardrails";
+
+import { sendDraft } from "./send";
 
 /**
  * Review-queue mutations (PRD §6: mutations are Server Actions). Every one checks the
@@ -77,4 +87,59 @@ export async function saveDraftEditAction(input: unknown): Promise<ActionResult>
   logger.info({ draftId: row.id }, "draft edited");
   revalidatePath("/review");
   return { ok: true };
+}
+
+const recipientInput = z.object({
+  draftId: z.uuid(),
+  // Empty clears it. §11 requires a verified recipient, and a blank field is an honest
+  // "not known yet" — far better than a guess that bounces.
+  recipient: z.string().trim(),
+});
+
+export async function setRecipientAction(input: unknown): Promise<ActionResult> {
+  await requireSession();
+
+  const parsed = recipientInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "That draft reference is not valid." };
+
+  const { draftId, recipient } = parsed.data;
+  if (recipient.length > 0) {
+    const valid = recipientSchema.safeParse(recipient);
+    if (!valid.success) {
+      return { ok: false, error: valid.error.issues[0]?.message ?? "That address is not valid." };
+    }
+  }
+
+  const existing = await getDraft(draftId);
+  if (!existing) return { ok: false, error: "That draft no longer exists." };
+  if (existing.status === "sent") {
+    return { ok: false, error: "This draft was already sent; its recipient is fixed." };
+  }
+
+  await setDraftRecipient(draftId, recipient.length > 0 ? recipient : null);
+  logger.info({ draftId, cleared: recipient.length === 0 }, "recipient set");
+  revalidatePath("/review");
+  return { ok: true };
+}
+
+export type SendActionResult =
+  { ok: true; dryRun: boolean } | { ok: false; error: string; blockedBy?: string[] };
+
+/**
+ * Send an approved draft. Every §11 guardrail is re-evaluated inside `sendDraft`,
+ * immediately before delivery — the readout the UI rendered could be seconds stale,
+ * and the daily cap in particular moves underneath it.
+ */
+export async function sendDraftAction(input: unknown): Promise<SendActionResult> {
+  await requireSession();
+
+  const parsed = idSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "That draft reference is not valid." };
+
+  const result = await sendDraft(parsed.data.draftId);
+
+  revalidatePath("/review");
+  revalidatePath("/pipeline");
+  revalidatePath("/today");
+  return result;
 }

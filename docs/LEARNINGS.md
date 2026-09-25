@@ -413,3 +413,47 @@ entirely — the one part that was broken.
 invokes the script directly verifies the script, not the hook — it cannot see a
 configuration that never dispatches to it. The same trap as any integration boundary:
 testing both halves separately proves nothing about the seam.
+
+---
+
+## 2026-09-25 11:20 — A readout that re-derives its own numbers will eventually lie
+
+**Problem.** The review card's guardrail strip showed "Daily cap 30" while the server
+was enforcing 5. Approving and sending would have been refused by a rule the interface
+had just told you was satisfied.
+
+**Root cause.** The card took a raw `dailyCap` prop and rendered it. The real cap comes
+from the warm-up ramp, which is computed server-side in `evaluateSend`. Two places
+computed "the cap", and only one of them was right.
+
+**Fix.** The page runs `assessDrafts` — the same `evaluateSend` the send gate runs,
+batched across the queue — and the card renders the returned guardrails verbatim. There
+is now exactly one implementation.
+
+**Rule.** When a screen explains a rule the server enforces, it must render the server's
+own evaluation, not a second implementation of it. Any check worth showing is worth
+passing down whole. A readout that can promise something the server refuses is worse
+than no readout, because it is trusted.
+
+---
+
+## 2026-09-25 11:18 — Extending a boundary is how you find out it works
+
+**Problem.** Adding Gmail meant a second vendor with secrets. Extending
+`boundary.test.ts` to cover it immediately failed — on the two OAuth route handlers I
+had just written, which read `GOOGLE_CLIENT_ID` and `GMAIL_OAUTH_REFRESH_TOKEN` directly.
+
+**Root cause.** Writing a route that needs to *explain* missing configuration feels like
+a legitimate reason to read that configuration. It is not: naming a variable and reading
+its value are different needs, and only one crosses the boundary.
+
+**Fix.** `lib/gmail` exports `oauthClientReady()` and a `GMAIL_ENV` map of the variable
+*names*. The routes report what is missing without touching a value.
+
+Tightening the patterns to be import-shaped was also required: `env.ts` legitimately
+contains the literal `"openai"` as a config enum value, and a vendor's name in a string
+is not a dependency.
+
+**Rule.** A boundary that has only ever been satisfied has not been tested. Extend it to
+the next vendor early — the first thing it catches will be code you just wrote and
+believed was fine.

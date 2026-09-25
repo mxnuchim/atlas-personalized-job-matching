@@ -21,18 +21,41 @@ export const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
 ];
 
+/**
+ * The env var names this layer owns. Exported so callers can *name* them in a setup
+ * message without reaching for the values — which is what keeps the secret boundary
+ * meaningful rather than merely stated.
+ */
+export const GMAIL_ENV = {
+  clientId: "GOOGLE_CLIENT_ID",
+  clientSecret: "GOOGLE_CLIENT_SECRET",
+  refreshToken: "GMAIL_OAUTH_REFRESH_TOKEN",
+  sendingAddress: "SENDING_ADDRESS",
+} as const;
+
 export type GmailConfigError = { configured: false; missing: string[] };
 export type GmailConfigOk = { configured: true; sendingAddress: string };
 
 export function gmailConfig(): GmailConfigOk | GmailConfigError {
   const missing: string[] = [];
-  if (!env.GOOGLE_CLIENT_ID) missing.push("GOOGLE_CLIENT_ID");
-  if (!env.GOOGLE_CLIENT_SECRET) missing.push("GOOGLE_CLIENT_SECRET");
-  if (!env.GMAIL_OAUTH_REFRESH_TOKEN) missing.push("GMAIL_OAUTH_REFRESH_TOKEN");
-  if (!env.SENDING_ADDRESS) missing.push("SENDING_ADDRESS");
+  if (!env.GOOGLE_CLIENT_ID) missing.push(GMAIL_ENV.clientId);
+  if (!env.GOOGLE_CLIENT_SECRET) missing.push(GMAIL_ENV.clientSecret);
+  if (!env.GMAIL_OAUTH_REFRESH_TOKEN) missing.push(GMAIL_ENV.refreshToken);
+  if (!env.SENDING_ADDRESS) missing.push(GMAIL_ENV.sendingAddress);
 
   if (missing.length > 0) return { configured: false, missing };
   return { configured: true, sendingAddress: env.SENDING_ADDRESS! };
+}
+
+/**
+ * Whether the OAuth *client* credentials exist — enough to start a consent flow, which
+ * is a weaker requirement than being able to send.
+ */
+export function oauthClientReady(): { ready: true } | { ready: false; missing: string[] } {
+  const missing: string[] = [];
+  if (!env.GOOGLE_CLIENT_ID) missing.push(GMAIL_ENV.clientId);
+  if (!env.GOOGLE_CLIENT_SECRET) missing.push(GMAIL_ENV.clientSecret);
+  return missing.length > 0 ? { ready: false, missing } : { ready: true };
 }
 
 export function isGmailConfigured(): boolean {

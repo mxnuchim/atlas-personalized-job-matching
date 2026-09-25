@@ -62,8 +62,20 @@ const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
+/**
+ * `awaiting` is pending + approved: an approved draft has not gone anywhere yet, so it
+ * belongs on the review screen until it is actually sent.
+ */
+export type DraftFilter = Draft["status"] | "all" | "awaiting";
+
+function statusFilter(filter: DraftFilter) {
+  if (filter === "all") return undefined;
+  if (filter === "awaiting") return inArray(drafts.status, ["pending", "approved"]);
+  return eq(drafts.status, filter);
+}
+
 export async function listDrafts(
-  status: Draft["status"] | "all" = "pending",
+  status: DraftFilter = "pending",
   limit = 200,
 ): Promise<DraftRow[]> {
   const rows = await db
@@ -72,7 +84,7 @@ export async function listDrafts(
     .innerJoin(matches, eq(drafts.matchId, matches.id))
     .innerJoin(jobs, eq(matches.jobId, jobs.id))
     .leftJoin(evidence, eq(drafts.evidenceId, evidence.id))
-    .where(status === "all" ? undefined : eq(drafts.status, status))
+    .where(statusFilter(status))
     .orderBy(desc(matches.overall), desc(drafts.createdAt))
     .limit(limit);
 
