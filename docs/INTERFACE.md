@@ -88,13 +88,12 @@ Restrained by design — premium means craft, not quantity. Library: **`motion`*
 (package name), imported from `motion/react`. Never `framer-motion`, which is present
 only as a transitive dependency.
 
-Currently installed but **not yet used** — the motion work below lands with M6.
-
 The complete permitted set:
 
 1. **One orchestrated reveal** — Today's top matches stagger in once on load. Once.
+   *Built:* `match-card.tsx`, 70ms per card, `[0.22, 1, 0.36, 1]`.
 2. **Score gauges animate 0 → value once**, on first paint only. Not on re-render, not
-   on scroll.
+   on scroll. *Built:* `fit-gauge.tsx`, spring `{ stiffness: 90, damping: 20, mass: 0.9 }`.
 3. **Approve & send** — check morph, optimistic status flip, row slides out, toast
    *"Sent to {company}."* Rolls back on failure.
 4. **Status changes** — optimistic with rollback.
@@ -177,7 +176,11 @@ These are not style preferences — they decide where code goes.
 | `page-header` | server | `h1` in `font-display text-2xl`, optional action slot |
 | `stat-strip` | server | One bordered `<dl>` strip with hairline dividers — deliberately not shadowed cards |
 | `empty-state` | server | Dashed border, centered, icon + title + description + optional action |
-| `match-card` | server | Score in `font-display text-2xl tabular-nums`, tier pill, `why_you`, strength chips, five-dimension `<dl>`, red flags |
+| `fit-gauge` | client | **The hero.** 260° dial, tier-coloured, sweeps once. Sizes `sm` 44px (table) / `md` 64px (card, drawer) / `lg` 104px. Arc math is the pure, tested `gaugeArc()` |
+| `tier-chip` | server | Tier label + colour from the `--tier-*` tokens via `color-mix`. The only place a tier is styled |
+| `matches-table` | client | The console table. Sort, filter, roving tabindex, `j`/`k`/`enter`/`/` |
+| `match-drawer` | client | Radix Dialog as a right sheet. The one component with a real shadow |
+| `match-card` | client | A top match on Today. Gauge + why-you + strength chips + red flags. Participates in the orchestrated reveal |
 | `app-nav` | client | Needs `usePathname()` for active state; sets `aria-current="page"` |
 | `theme-toggle` | client | Renders both icons and swaps with `dark:hidden`/`dark:block` to avoid hydration mismatch |
 | `user-menu` | client | Radix dropdown; sign-out is a `<form action={signOutAction}>` |
@@ -190,16 +193,13 @@ These are not style preferences — they decide where code goes.
 
 Known inconsistencies. Fix when you're next in the file; don't add to them.
 
-- **`match-card.tsx` bypasses the tier tokens.** It uses raw Tailwind palette colors
-  (`emerald-500/12`, `amber-500/12`, `primary/12`) instead of `--tier-strong` /
-  `--tier-possible` / `--tier-stretch`, which exist for exactly this and are currently
-  unused. Dark mode tier values therefore never apply.
 - **`cn` has two import paths.** App components import from `@/lib/utils`; every `ui/*`
   file imports from `"cn"` directly. `@/lib/utils` is a one-line re-export of the same
   function. Pick `@/lib/utils` and converge.
 - **`--sidebar-*` and `--chart-*` token families are unused.** There is no sidebar (nav
   is a horizontal header) and no charts. Leave them until a real need appears, then
   either use or delete — don't half-adopt.
-- **The score is not yet a gauge.** PRD §10.2 calls for a considered gauge as the hero;
-  `match-card` currently renders a large number. M6.
-- **Today's stats are hardcoded `"0"`.** `today/page.tsx` fetches nothing yet.
+- **The drawer has no actions yet.** Approve / skip / edit and the editable draft land
+  with M3, along with the `a` / `s` / `e` shortcuts §10.3 reserves for them.
+- **No Runs or Pipeline data.** Both pages are still static shells; the `runs` table is
+  never written (M5) and `drafts` / `outreach` have no queries (M3/M4).

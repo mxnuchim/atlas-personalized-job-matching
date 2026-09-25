@@ -151,3 +151,52 @@ cannot quietly end without recording why.
 
 **Files.** `docs/{EXECUTION,LEARNINGS,INTERFACE}.md`, `.claude/settings.json`,
 `.claude/hooks/*`, `.gitignore`
+
+---
+
+## 2026-09-25 09:20 — M2 UI: the console table, the fit gauge, the drawer
+
+**Context.** M2's remaining half (PRD §13): "the Matches table (Server Component) with
+the fit gauge and the strengths-rewarded readout in the drawer. First 'wow.'" Until now
+Matches rendered a flat list of cards, the score was a plain number, and there was no
+drawer. Today's stat strip was hardcoded to `"0"`.
+
+**Action.**
+
+- **`fit-gauge.tsx`** — the hero (§10.2). A 260° dial, open at the bottom, coloured by
+  the semantic `--tier-*` tokens. Sweeps 0 → value once on mount via a spring, never
+  again; `prefers-reduced-motion` collapses it to instant, not merely slower. The arc
+  math is extracted as a pure `gaugeArc()` and unit-tested — a gauge that draws the
+  wrong fill is a lie about the one number the product exists to communicate.
+- **`matches-table.tsx`** — the console table as a client island inside the
+  server-rendered page. Sortable on all five columns, filterable by tier and free text.
+  Keyboard-first per §10.3: `j`/`k` move, `enter` opens, `/` focuses the filter,
+  `escape` clears it. Follows the ARIA grid roving-tabindex pattern, so Tab steps past
+  the table rather than through every row.
+- **`match-drawer.tsx`** — Radix Dialog as a right-hand sheet, in the order you actually
+  read it: gauge, why-you, the strengths this role rewards (with meters), the
+  five-dimension breakdown, reasoning, red flags, then the posting. This is the one
+  component in the app that carries a real shadow (§10.1).
+- **`tier-chip.tsx`** — closes an INTERFACE open item. Tier colour now comes from the
+  `--tier-*` tokens via `color-mix`, not raw palette classes.
+- **`matches/loading.tsx`** — a skeleton matching the table's real geometry, so nothing
+  shifts when rows land.
+- **Today** now reads real data: counts come from one SQL aggregate rather than loading
+  every row, and the top four matches render as cards. This is the product's single
+  orchestrated motion moment (§10.4) — cards stagger in once, each gauge sweeping behind
+  its card. Nowhere else does a card fade up (§10.5).
+- **`listMatchRows()` / `getMatchCounts()`** — a lean, fully serializable view model for
+  the client island. Dates are pre-formatted on the server (formatting them on the client
+  risks a locale hydration mismatch) and postings are decoded to text and capped, since
+  raw job HTML was by far the largest thing in the payload.
+
+**Result.** 67 tests green; typecheck, lint and production build clean.
+
+One lint finding worth keeping: the first version clamped the table cursor inside a
+`useEffect`, which React flags as a cascading render. Clamping is derived state — it now
+happens during render, and the only remaining effect is the one syncing DOM focus, which
+is genuinely external.
+
+**Files.** `src/components/{fit-gauge,matches-table,match-drawer,tier-chip,match-card}.tsx`,
+`src/app/(app)/matches/{page,loading}.tsx`, `src/app/(app)/today/page.tsx`,
+`src/db/queries/matches.ts`, `src/components/fit-gauge.test.ts`, `src/lib/scoring.test.ts`

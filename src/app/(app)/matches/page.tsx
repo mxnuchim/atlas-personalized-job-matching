@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import { TargetIcon } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
-import { MatchCard } from "@/components/match-card";
+import { MatchesTable } from "@/components/matches-table";
 import { PageHeader } from "@/components/page-header";
 import { getCurrentProfile } from "@/db/queries/profile";
-import { listMatches } from "@/db/queries/matches";
+import { listMatchRows } from "@/db/queries/matches";
 
 export const metadata: Metadata = {
   title: "Matches",
@@ -13,21 +13,28 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Server-rendered shell; the table itself is a client island because it is
+ * keyboard-navigable and holds sort/filter/selection state (PRD §6).
+ */
 export default async function MatchesPage() {
-  const [matches, profile] = await Promise.all([listMatches(), getCurrentProfile()]);
+  const [matches, profile] = await Promise.all([listMatchRows(), getCurrentProfile()]);
+
   const strengthLabels = Object.fromEntries(
     (profile?.strengths ?? []).map((s) => [s.key, s.label]),
   );
-
   const strong = matches.filter((m) => m.tier === "strong").length;
-  const description =
-    matches.length > 0
-      ? `${matches.length} scored · ${strong} strong, best fit first.`
-      : "Every scored role, anchored by its fit.";
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Matches" description={description} />
+      <PageHeader
+        title="Matches"
+        description={
+          matches.length > 0
+            ? `${matches.length} scored · ${strong} strong, best fit first.`
+            : "Every scored role, anchored by its fit."
+        }
+      />
 
       {matches.length === 0 ? (
         <EmptyState
@@ -36,11 +43,7 @@ export default async function MatchesPage() {
           description="Once a run scores new postings against your strengths, they'll list here with their fit score and the strengths each role rewards."
         />
       ) : (
-        <div className="space-y-4">
-          {matches.map((match) => (
-            <MatchCard key={match.id} match={match} strengthLabels={strengthLabels} />
-          ))}
-        </div>
+        <MatchesTable matches={matches} strengthLabels={strengthLabels} />
       )}
     </div>
   );

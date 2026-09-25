@@ -1,7 +1,16 @@
 import { and, desc, eq, notExists, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { jobs, matches, type Job, type Match } from "@/db/schema";
+import {
+  jobs,
+  matches,
+  type FitDimensions,
+  type Job,
+  type Match,
+  type StrengthMatch,
+} from "@/db/schema";
+import { htmlToText } from "@/lib/html";
+import type { FitTier } from "@/lib/scoring";
 
 export type MatchWithJob = Match & { job: Job };
 
@@ -32,4 +41,96 @@ export async function getUnscoredJobs(profileVersion: number, limit: number): Pr
     )
     .orderBy(desc(jobs.firstSeenAt))
     .limit(limit);
+}
+
+/**
+ * The shape the Matches UI actually renders. Built on the server and handed to a
+ * client island, so it is deliberately lean and fully serializable: dates are
+ * pre-formatted (formatting them on the client risks a locale hydration mismatch)
+ * and the posting is decoded to plain text and capped, since raw job HTML is by far
+ * the largest thing in the payload.
+ */
+export type MatchRow = {
+  id: string;
+  jobId: string;
+  overall: number;
+  tier: FitTier;
+  dimensions: FitDimensions;
+  strengthMatches: StrengthMatch[];
+  whyYou: string;
+  reasoning: string;
+  redFlags: string[];
+  model: string;
+  /** ISO — for sorting. */
+  scoredAt: string;
+  /** Pre-formatted for display. */
+  scoredAtLabel: string;
+  title: string;
+  company: string;
+  location: string | null;
+  remote: boolean;
+  url: string;
+  /** Plain text, capped. `descriptionTruncated` says whether anything was cut. */
+  description: string;
+  descriptionTruncated: boolean;
+};
+
+/** Generous enough to read in the drawer; the original is always one link away. */
+const MAX_DESCRIPTION_CHARS = 9000;
+
+const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+});
+
+/** Scored matches shaped for the UI, best fit first. */
+export async function listMatchRows(limit = 200, profileVersion?: number): Promise<MatchRow[]> {
+  const rows = await db
+    .select()
+    .from(matches)
+    .innerJoin(jobs, eq(matches.jobId, jobs.id))
+    .where(profileVersion ? eq(matches.profileVersion, profileVersion) : undefined)
+    .orderBy(desc(matches.overall), desc(matches.scoredAt))
+    .limit(limit);
+
+  return rows.map(({ matches: m, jobs: j }) => {
+    const text = htmlToText(j.description ?? "");
+    return {
+      id: m.id,
+      jobId: m.jobId,
+      overall: m.overall,
+      tier: m.tier as FitTier,
+      dimensions: m.dimensions,
+      strengthMatches: m.strengthMatches,
+      whyYou: m.whyYou,
+      reasoning: m.reasoning,
+      redFlags: m.redFlags,
+      model: m.model,
+      scoredAt: m.scoredAt.toISOString(),
+      scoredAtLabel: DATE_FORMAT.format(m.scoredAt),
+      title: j.title,
+      company: j.company,
+      location: j.location,
+      remote: j.remote,
+      url: j.url,
+      description: text.slice(0, MAX_DESCRIPTION_CHARS),
+      descriptionTruncated: text.length > MAX_DESCRIPTION_CHARS,
+    };
+  });
+}
+
+/** Counts for the Today strip, done in SQL rather than by loading every row. */
+export async function getMatchCounts(profileVersion?: number) {
+  const [row] = await db
+    .select({
+      total: sql<number>`count(*)::int`,
+      strong: sql<number>`count(*) filter (where ${matches.tier} = 'strong')::int`,
+      possible: sql<number>`count(*) filter (where ${matches.tier} = 'possible')::int`,
+      scoredToday: sql<number>`count(*) filter (where ${matches.scoredAt} >= date_trunc('day', now()))::int`,
+    })
+    .from(matches)
+    .where(profileVersion ? eq(matches.profileVersion, profileVersion) : undefined);
+
+  return row ?? { total: 0, strong: 0, possible: 0, scoredToday: 0 };
 }
