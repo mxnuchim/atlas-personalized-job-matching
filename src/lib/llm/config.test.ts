@@ -67,7 +67,7 @@ describe("MODELS", () => {
     const { MODELS, PROVIDER } = await loadConfig({});
     expect(PROVIDER).toBe("openai");
     expect(MODELS.scoring).toBe("gpt-5-mini");
-    expect(MODELS.drafting).toBe("gpt-5.2");
+    expect(MODELS.drafting).toBe("gpt-5-mini");
   });
 });
 

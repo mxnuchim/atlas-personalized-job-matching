@@ -8,6 +8,27 @@
       "when": 1790283215151,
       "tag": "0000_flaky_black_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790328368573,
+      "tag": "0001_same_skrulls",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790328468962,
+      "tag": "0002_striped_puck",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790328629947,
+      "tag": "0003_outgoing_phantom_reporter",
+      "breakpoints": true
     }
   ]
 }

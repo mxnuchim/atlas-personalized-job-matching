@@ -34,7 +34,7 @@ const envSchema = z.object({
   // the only module that reads an API key or knows a provider exists (PRD §12).
   LLM_PROVIDER: z.enum(["anthropic", "openai", "google", "groq"]).default("openai"),
   MODEL_SCORING: z.string().default("gpt-5-mini"),
-  MODEL_DRAFTING: z.string().default("gpt-5.2"),
+  MODEL_DRAFTING: z.string().default("gpt-5-mini"),
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
@@ -48,6 +48,11 @@ const envSchema = z.object({
    * observed in practice: two calls hung ~15 minutes before the socket gave up.
    */
   LLM_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(300_000).default(60_000),
+
+  // Login throttle (§11-adjacent: protects the account, and the 19 MiB each Argon2
+  // verify allocates makes unbounded attempts a cheap denial-of-service too).
+  LOGIN_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(100).default(10),
+  LOGIN_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
 
   // M4 — Gmail sending
   GOOGLE_CLIENT_ID: z.string().optional(),

@@ -4,6 +4,7 @@
 export * from "./enums";
 export * from "./json";
 export * from "./users";
+export * from "./login-attempts";
 export * from "./sources";
 export * from "./jobs";
 export * from "./profile";

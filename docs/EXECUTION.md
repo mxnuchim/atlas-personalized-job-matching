@@ -302,3 +302,68 @@ inside the JSON payload, which corrupts it before `jq` ever sees it. Second time
 exact trap appeared today; see LEARNINGS.
 
 **Files.** `.claude/hooks/{record-touch,require-docs}.sh`
+
+---
+
+## 2026-09-25 10:40 — M3: strength-grounded drafts + review queue, with runs and a login throttle
+
+**Context.** M3 per PRD §13: generate outreach for strong matches that builds on the
+strengths the role rewards and cites a real evidence item, then a review queue with
+inline edit and approve/skip. No sending. Two items were folded in at the same time:
+the `runs` table had never been written, and login had no rate limit.
+
+**Action.**
+
+*Drafting (`src/pipeline/drafting/`).* The grounding requirement is enforced
+structurally, not hoped for. Each draft is offered **only** the evidence backing
+strengths this role scored ≥50 on, and must report which item it used via an
+`evidence_id` constrained by `z.enum` to exactly those ids — the same two-layer
+defence scoring uses, with `draftToRow` filtering again afterwards. An invented id is
+dropped to null rather than written as a dangling reference, and `draftGrounding`
+records an ungrounded draft as a run error instead of storing it as if it were fine.
+A match whose rewarded strengths have no evidence behind them **refuses to draft**:
+fabricating beats nothing is exactly backwards here.
+
+*Schema.* `drafts` gained `evidence_id` and `strength_keys` — without them "cites a
+real achievement" is unverifiable and the review queue has nothing to show. `profile`
+gained `name` and `portfolio_url`; the first version scraped them out of `cv_text`
+with a regex, which would have signed a real email "the candidate". Drafting now
+refuses when `name` is unset rather than guessing.
+
+*Review queue.* `/review` is a server-rendered shell around a client island. Decisions
+are optimistic with rollback via `useOptimistic` — the card leaves immediately and
+comes back with a toast if the action fails. Inline edit writes `edited_body` and never
+overwrites the generated `body`, so what the model produced stays auditable. Every
+action re-checks the session server-side and refuses to decide or edit a draft that is
+no longer pending. The guardrail readout shows what would still block a send, so the
+missing recipient is visible now rather than discovered in M4.
+
+*Runs.* The row is opened **before** any work starts, so a crash or timeout leaves a
+row with no `finished_at` — which is the signal. Stage errors accumulate without
+ending the run; only a throw does, and the row is still closed as `failed`. Status is
+`ok` / `partial` / `failed` by whether anything was produced alongside the errors.
+`/runs` renders it.
+
+*Login throttle.* Kept in Postgres, not memory: on a serverless deploy each instance
+has its own memory, so an in-memory counter is bypassed by landing on another lambda.
+Email and IP are counted independently — email-only lets anyone lock the real user out,
+IP-only is trivially distributed — and the check runs *before* hashing, since each
+Argon2 verify allocates 19 MiB.
+
+**Result.** 104 tests green; lint, typecheck and production build clean. Verified end to
+end against the live database: a real draft generated, cited the real BreezeLearn
+evidence with its real metric, included the portfolio link, and came in under 120 words
+for $0.0028. Edit preserves the original body, `decided_at` is stamped, and the guard
+refuses a second decision. The throttle blocks at exactly 10 attempts, trips on the
+email key alone, leaves unrelated keys untouched, and clears on success.
+
+**One defect caught by reading the output.** The first generated draft contained
+`…at <400ms latency (id=a8c730f3-9067-451d-ab0b-cfe0d215e7ff)` — the model copied the
+internal evidence id into the email body. That would have gone to a hiring manager.
+Fixed in the prompt *and* with a `stripIdentifiers` pass, because a prompt is not a
+guarantee. Regenerated clean.
+
+**Files.** `src/pipeline/drafting/*`, `src/pipeline/run.ts`, `src/db/queries/{drafts,runs}.ts`,
+`src/db/schema/{drafts,profile,login-attempts}.ts`, `src/lib/rate-limit.ts`, `src/auth.ts`,
+`src/app/(app)/review/*`, `src/app/(app)/runs/page.tsx`, `src/components/review-queue.tsx`,
+`src/app/api/pipeline/run/route.ts`, `drizzle/0001–0003`

@@ -338,3 +338,57 @@ hook could not fire at all.
 that must not; checking only the happy path cannot distinguish "correctly permissive" from
 "completely inert". This is the same lesson as tripping the boundary test deliberately —
 it just cost a second time because the test only asserted one side.
+
+---
+
+## 2026-09-25 10:15 — A model will copy your internal ids into the prose
+
+**Problem.** The first real draft read well and cited genuine evidence — and contained
+`…at <400ms latency (id=a8c730f3-9067-451d-ab0b-cfe0d215e7ff)`. That was one approval
+away from being emailed to a hiring manager.
+
+**Root cause.** The evidence list was given to the model as `id=<uuid> (label) claim…`
+and it was told to "report which one by its id". It did both: it put the id in the
+structured field *and* copied the pattern into the body.
+
+**Fix.** Two layers. The prompt now says the id belongs in the `evidence_id` field only
+and that the recipient must never see one. And `stripIdentifiers()` removes
+`(id=…)`, `id=…` and bare UUIDs from the subject and body before storage, with a test
+using the verbatim leaked string.
+
+**Rule.** Anything you put in a prompt can come back out in the generated text. If a
+value must never reach the reader — an internal id, a system instruction, a raw score —
+strip it deterministically on the way out. A prompt is a request, not a guarantee.
+
+---
+
+## 2026-09-25 10:20 — Don't regex personal details out of free text
+
+**Problem.** The drafter needed the candidate's name and portfolio URL. Neither was on
+the `profile` table, so the first version scraped them out of `cv_text` with a regex,
+falling back to the literal string `"the candidate"`.
+
+**Root cause.** Reaching for an extraction hack instead of extending the contract. The
+failure mode is silent and public: an outreach email signed "the candidate".
+
+**Fix.** `name` and `portfolio_url` are columns on `profile`, part of the seed
+contract, and `runDraft` refuses with a clear message when `name` is unset.
+
+**Rule.** When output goes in front of another human, a missing input is a hard stop,
+not a default. Add the field; never infer identity from prose.
+
+---
+
+## 2026-09-25 10:25 — Python's `str.replace` fails silently; `Edit` does not
+
+**Problem.** The login throttle was written, imported into `auth.ts`, and not wired up.
+Lint caught it only because the imports were unused — otherwise a security control
+would have shipped as dead code.
+
+**Root cause.** Patching files with `python … s.replace(old, new)`. Prettier had
+reformatted the target block onto one line in an earlier commit, so `old` no longer
+matched and `replace` returned the string unchanged, exit code 0, no output.
+
+**Rule.** For surgical edits to existing code, use the `Edit` tool — it errors when the
+pattern does not match. If patching from a script, `assert old in s` before replacing.
+An edit that silently does nothing is worse than one that fails.

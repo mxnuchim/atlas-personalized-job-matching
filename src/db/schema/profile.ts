@@ -10,6 +10,13 @@ export const profile = pgTable("profile", {
   id: id(),
   version: integer().notNull().unique(),
   headline: text().notNull(),
+  /**
+   * Who the outreach is from. Required before drafting: an email signed "the
+   * candidate" is worse than no email, so `runDraft` refuses rather than guessing.
+   */
+  name: text(),
+  /** §15-C requires the portfolio link in every draft. */
+  portfolioUrl: text(),
   targetRoles: jsonb().$type<string[]>().notNull().default([]),
   seniority: text(),
   locations: jsonb().$type<string[]>().notNull().default([]),

@@ -93,6 +93,8 @@ brings systems-and-failure-modes thinking to software reliability.
 {
   "profile": {
     "version": 1,
+    "name": "Manuchimso Oliver",
+    "portfolio_url": "https://manuchim.com",
     "headline": "Senior software engineer who builds and operates reliable, money-moving systems — distributed backends, full-stack products (web + mobile), and production AI/ML integration, with fintech-grade reliability and regulated-environment security.",
     "target_roles": ["Forward Deployed Engineer", "AI-Systems Engineer", "Full-Stack Engineer", "Backend Engineer", "Frontend Engineer"],
     "seniority": "Senior / Lead (7+ years; Lead across backend, frontend, cloud; platform/first-infra-hire scope)",

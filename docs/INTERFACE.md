@@ -94,8 +94,10 @@ The complete permitted set:
    *Built:* `match-card.tsx`, 70ms per card, `[0.22, 1, 0.36, 1]`.
 2. **Score gauges animate 0 → value once**, on first paint only. Not on re-render, not
    on scroll. *Built:* `fit-gauge.tsx`, spring `{ stiffness: 90, damping: 20, mass: 0.9 }`.
-3. **Approve & send** — check morph, optimistic status flip, row slides out, toast
-   *"Sent to {company}."* Rolls back on failure.
+3. **Approve & send** — optimistic status flip, row slides out, toast naming the
+   company. Rolls back on failure. *Built (decide half):* `review-queue.tsx` uses
+   `useOptimistic`; the card's disappearance **is** the confirmation, so there is no
+   second success animation on top of it. Sending lands in M4.
 4. **Status changes** — optimistic with rollback.
 5. **Skeletons, never spinners.**
 
@@ -181,6 +183,7 @@ These are not style preferences — they decide where code goes.
 | `matches-table` | client | The console table. Sort, filter, roving tabindex, `j`/`k`/`enter`/`/` |
 | `match-drawer` | client | Radix Dialog as a right sheet. The one component with a real shadow |
 | `match-card` | client | A top match on Today. Gauge + why-you + strength chips + red flags. Participates in the orchestrated reveal |
+| `review-queue` | client | The draft queue. Inline edit, optimistic approve/skip with rollback, and the guardrail readout |
 | `app-nav` | client | Needs `usePathname()` for active state; sets `aria-current="page"` |
 | `theme-toggle` | client | Renders both icons and swaps with `dark:hidden`/`dark:block` to avoid hydration mismatch |
 | `user-menu` | client | Radix dropdown; sign-out is a `<form action={signOutAction}>` |
@@ -188,6 +191,16 @@ These are not style preferences — they decide where code goes.
 | `ui/*` | mixed | shadcn-style primitives |
 
 ---
+
+## 10a. Guardrail readouts
+
+Anywhere an action is gated, show *what* gates it rather than disabling the control
+with no explanation. The review queue's readout is the pattern: one dot per check,
+green when satisfied and amber when not, with the unmet one stated in plain words
+("No recipient yet — sending lands in M4").
+
+Dots use `--tier-strong` / `--tier-possible`, not new colours: satisfied and
+caveat already have semantics in this system.
 
 ## 11. Open items
 
@@ -199,7 +212,11 @@ Known inconsistencies. Fix when you're next in the file; don't add to them.
 - **`--sidebar-*` and `--chart-*` token families are unused.** There is no sidebar (nav
   is a horizontal header) and no charts. Leave them until a real need appears, then
   either use or delete — don't half-adopt.
-- **The drawer has no actions yet.** Approve / skip / edit and the editable draft land
-  with M3, along with the `a` / `s` / `e` shortcuts §10.3 reserves for them.
-- **No Runs or Pipeline data.** Both pages are still static shells; the `runs` table is
-  never written (M5) and `drafts` / `outreach` have no queries (M3/M4).
+- **The match drawer still has no actions.** Approve / skip / edit live on `/review`;
+  the `a` / `s` / `e` shortcuts §10.3 reserves for the matches table are unimplemented.
+- **Pipeline screen is still a static shell.** `outreach` has no queries (M4).
+- **The review queue is not keyboard-driven.** §10.3 reserves `a` / `s` / `e`; today it
+  is pointer- and tab-driven only.
+- **Strength chips in the Cites block do not cap.** Five strengths become five rows on a
+  phone. Today's card caps at four; this one deliberately does not, because a draft is
+  read closely rather than scanned — revisit if it grows further.

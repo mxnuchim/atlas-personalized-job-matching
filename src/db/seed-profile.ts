@@ -25,6 +25,8 @@ const seedSchema = z.object({
   profile: z.object({
     version: z.number().int().positive(),
     headline: z.string().min(1),
+    name: z.string().min(1).nullish(),
+    portfolio_url: z.string().min(1).nullish(),
     target_roles: z.array(z.string()).default([]),
     seniority: z.string().nullish(),
     locations: z.array(z.string()).default([]),
@@ -90,6 +92,8 @@ async function main() {
     const profileValues = {
       version: p.version,
       headline: p.headline,
+      name: p.name ?? null,
+      portfolioUrl: p.portfolio_url ?? null,
       targetRoles: p.target_roles,
       seniority: p.seniority ?? null,
       locations: p.locations,
