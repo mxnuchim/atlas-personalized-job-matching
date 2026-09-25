@@ -392,3 +392,24 @@ matched and `replace` returned the string unchanged, exit code 0, no output.
 **Rule.** For surgical edits to existing code, use the `Edit` tool — it errors when the
 pattern does not match. If patching from a script, `assert old in s` before replacing.
 An edit that silently does nothing is worse than one that fails.
+
+---
+
+## 2026-09-25 10:45 — Fixing the script is not fixing the hook
+
+**Problem.** A hook bug was diagnosed correctly, fixed correctly in the script, tested
+thoroughly against the script — and still happened again on the next real run.
+
+**Root cause.** A Claude Code hook is two pieces: the script, and the `matcher` in
+`settings.json` that decides when it runs. `record-touch.sh` was taught to read
+`tool_input.command` so Bash-written files would count, but the matcher stayed
+`Write|Edit`, so the script was never invoked for a Bash call. Every test passed
+because the tests piped payloads straight into the script, bypassing the matcher
+entirely — the one part that was broken.
+
+**Fix.** Matcher is `Write|Edit|Bash`.
+
+**Rule.** When a hook misbehaves, check the matcher before the script. And a test that
+invokes the script directly verifies the script, not the hook — it cannot see a
+configuration that never dispatches to it. The same trap as any integration boundary:
+testing both halves separately proves nothing about the seam.

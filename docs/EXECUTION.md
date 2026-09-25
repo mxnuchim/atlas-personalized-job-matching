@@ -367,3 +367,27 @@ guarantee. Regenerated clean.
 `src/db/schema/{drafts,profile,login-attempts}.ts`, `src/lib/rate-limit.ts`, `src/auth.ts`,
 `src/app/(app)/review/*`, `src/app/(app)/runs/page.tsx`, `src/components/review-queue.tsx`,
 `src/app/api/pipeline/run/route.ts`, `drizzle/0001–0003`
+
+---
+
+## 2026-09-25 10:45 — The hook fix that only fixed half the hook
+
+**Context.** The Stop hook blocked the M3 session for not updating the docs ledger,
+which had in fact been updated and committed in the same turn — the second false
+positive from the same hook, after a fix that was supposed to close exactly this case.
+
+**Action.** `record-touch.sh` was rewritten earlier to read `tool_input.command` so
+that files written through Bash heredocs would count. It does. But the matcher in
+`.claude/settings.json` was never changed from `Write|Edit`, so the script never ran
+for a Bash call at all. The parsing was correct and unreachable: source edited through
+Write set the flag, docs written through a heredoc could not clear it.
+
+Matcher is now `Write|Edit|Bash`. Also removed two leftover `.state` files from my own
+earlier hook tests, which were cluttering the state directory.
+
+**Result.** Replayed the exact failing sequence — src via Write, then docs via heredoc,
+then docs via inline python plus a commit — along with src via `sed`, a prettier glob
+(which must *not* count as a source edit), and an unrelated command. Six cases, zero
+failures.
+
+**Files.** `.claude/settings.json`
