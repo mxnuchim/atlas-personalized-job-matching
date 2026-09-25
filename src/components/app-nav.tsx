@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion, useReducedMotion } from "motion/react";
 
+import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -17,6 +19,7 @@ const NAV = [
 
 export function AppNav({ className }: { className?: string }) {
   const pathname = usePathname();
+  const reduced = useReducedMotion();
 
   return (
     <nav className={cn("flex items-center gap-1 overflow-x-auto", className)} aria-label="Primary">
@@ -28,13 +31,21 @@ export function AppNav({ className }: { className?: string }) {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
+              "relative rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
               "focus-visible:ring-ring/50 outline-none focus-visible:ring-3",
               active
-                ? "bg-secondary text-foreground"
-                : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
+            {active && (
+              // Shared-element pill that slides between tabs as the route changes (§5).
+              <motion.span
+                layoutId="nav-active"
+                className="bg-secondary absolute inset-0 -z-10 rounded-md"
+                transition={reduced ? { duration: 0 } : SPRING.snappy}
+              />
+            )}
             {item.label}
           </Link>
         );

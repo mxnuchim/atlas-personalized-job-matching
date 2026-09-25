@@ -690,3 +690,28 @@ change yet — this is the base the rest of M6 builds on.
 
 **Files.** `src/lib/{motion,motion.test}.ts`, `src/app/globals.css`,
 `src/components/{fit-gauge,match-card}.tsx`, `docs/{INTERFACE,M6-BRIEF}.md`
+
+---
+
+## 2026-09-25 13:58 — M6 phase 2: interaction primitives
+
+**Context.** With the motion tokens in place (phase 1), the first layer of premium *feel* —
+the micro-interactions that apply broadly rather than to one screen.
+
+**Action.**
+
+- **Button press** (`ui/button.tsx`) — every button now dips and scales to 0.98 on press,
+  on the shared `--ease-standard` / `--duration-fast` curve. One line in the base variant, so
+  the whole app gets it at once.
+- **Sliding nav indicator** (`app-nav.tsx`) — the active pill is a `motion.span` with a shared
+  `layoutId`, so it *slides* between tabs on navigation (`SPRING.snappy`) instead of cutting.
+  Reduced-motion collapses the slide to instant.
+
+**Verification.** Built a throwaway dev-only preview gallery at `/preview` (never committed —
+git-excluded locally, removed at M6 end) rendering the button variants, the nav, gauges, tier
+chips, inputs and match cards. Confirmed in the browser, both themes: the pill slides between
+tabs, buttons render across variants/sizes, dark mode holds.
+
+**Result.** 149 tests green; lint, typecheck and build clean.
+
+**Files.** `src/components/ui/button.tsx`, `src/components/app-nav.tsx`
