@@ -559,3 +559,22 @@ saying explicitly that nothing sets it automatically and it exists for manual ma
 
 **Rule.** Schema is documentation that the type system enforces. A column that implies a
 capability the app does not have is worse than no column, because it is trusted.
+
+---
+
+## 2026-09-25 13:12 — A schedule with two homes needs a test that ties them
+
+**Problem.** The cadence lives in two places that cannot import each other: `RUN_HOURS` in
+TypeScript (for the UI and the derived cron string) and the literal `cron:` line in a
+GitHub Actions YAML. Change one, forget the other, and the app promises "next run 14:00"
+while the workflow fires at a different hour — drift that nothing catches until a run
+silently doesn't happen when expected.
+
+**Fix.** `schedule.ts` derives the UTC cron from `RUN_HOURS` (`cronExpression`), and
+`schedule.test.ts` reads the committed `.github/workflows/pipeline.yml`, extracts its cron,
+and asserts it equals `cronExpression(TZ)`. The TypeScript is the single source of truth;
+the test is what keeps the YAML honest.
+
+**Rule.** When a value must be duplicated across a boundary a build can't cross (code ↔ CI
+config, code ↔ infra), don't hand-sync it — commit one as source and add a test that reads
+the other file and fails on drift.

@@ -48,6 +48,12 @@ const envSchema = z.object({
   LOGIN_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(100).default(10),
   LOGIN_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
 
+  /**
+   * Where the "N new matches" run notification goes (PRD §8 step 7). Any endpoint that
+   * takes a POST: Slack, Discord, ntfy, or your own. Unset = no notification.
+   */
+  NOTIFY_WEBHOOK_URL: z.url().optional(),
+
   // Ops
   TZ: z.string().default("UTC"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),

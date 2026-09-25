@@ -611,3 +611,51 @@ access neither is observable, and a zero would claim a signal that does not exis
 `src/pipeline/drafting/prompt.ts`, `src/app/(app)/review/{actions,page}.tsx`,
 `src/db/queries/{drafts,outreach}.ts`, `src/db/schema/outreach.ts`, `src/lib/env.ts`,
 `src/pipeline/run.ts`, `eslint.config.mjs`, `drizzle/0005`
+
+---
+
+## 2026-09-25 13:12 — M5: twice-daily schedule, run notification, verification
+
+**Context.** M5 per PRD §13: the twice-daily cron, the "N new matches, T strong"
+notification, and the Runs screen. Runs shipped in M3 and the pipeline entry point has
+existed since M0; what remained was the cadence and the notification — and, since sending
+was dropped, a notification channel that does not touch a mailbox.
+
+**Action.**
+
+- **`lib/schedule.ts`** — one definition of the cadence (`RUN_HOURS = [6, 14]`), shared by
+  the UI (`nextRunLabel` on Today, the schedule line on Settings) and the scheduler. The
+  UTC hours the cron needs are *derived* from `RUN_HOURS` (`runHoursUtc`, `cronExpression`),
+  not hand-kept in two places.
+- **`.github/workflows/pipeline.yml`** — the scheduler as a cron line, not a broker (§6).
+  `0 6,14 * * *` plus `workflow_dispatch` with optional score/draft caps. It POSTs the
+  bearer-guarded entry point, writes the run to the Actions summary, and maps a `partial`
+  run to a warning while only a `failed` run turns the job red. A `concurrency` group stops
+  a slow run overlapping the next.
+- **`lib/notify.ts`** — a webhook, not email: Atlas no longer touches a mailbox, and
+  Slack/Discord/ntfy/generic all take a POST, its body shaped from the URL's host. The
+  message leads with strong matches (the day's headline) and links to `/today`; `notifyRun`
+  swallows its own failures — a dead webhook must never fail a run that did its work.
+- **`pipeline/run.ts`** fires `notifyRun` *after* `finishRun`: the run row is the durable
+  record, the notification a convenience. `score.ts` now returns `strong` so the message
+  can lead with it.
+- **Schedule stays UTC** (chosen this session): `TZ=UTC`, so runs fire 06:00/14:00 UTC and
+  the UI says exactly that. `schedule.test.ts` reads the committed workflow and fails if its
+  cron ever drifts from `cronExpression(TZ)`.
+
+**Result.** 144 tests green (incl. `schedule.test.ts`, `notify.test.ts`); lint, typecheck
+and production build clean. Verified live against the database: triggering the pipeline
+wrote a `runs` row (status `ok`), returned the full `{ingest,scoring,drafting,totals}`
+shape the workflow consumes, and **POSTed the notification** to a local catcher —
+`{"text":"Atlas ran. Nothing new to review.", …}`, the generic multi-key body for an
+unknown host. Every job was already scored, so the run was a $0 no-op — which also
+re-confirmed ingest idempotency (89 seen, 0 inserted). The richer message shapes
+(strong / drafts / errors / cost) are covered by `notify.test.ts`.
+
+UI behind the Auth.js login was not re-screenshotted this session (entering a password is
+out of scope here, as in the M2 visual pass); Today's `nextRunLabel` and Settings' schedule
+line are code-verified and unit-tested.
+
+**Files.** `src/lib/{schedule,notify}.ts`, `src/lib/{schedule,notify}.test.ts`,
+`.github/workflows/pipeline.yml`, `src/pipeline/run.ts`, `src/pipeline/scoring/score.ts`,
+`src/lib/env.ts`, `.env.example`

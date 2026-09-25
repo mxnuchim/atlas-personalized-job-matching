@@ -1,0 +1,85 @@
+name: Pipeline
+
+# The scheduler (PRD §6): a cron line, not a broker. Two runs a day for one person
+# needs nothing more, and this keeps the schedule outside the app entirely.
+#
+# The hours are UTC — GitHub Actions speaks no other timezone — and are derived from
+# RUN_HOURS in src/lib/schedule.ts. `schedule.test.ts` fails if the two drift apart.
+on:
+  schedule:
+    - cron: "0 6,14 * * *"
+  workflow_dispatch:
+    inputs:
+      scoreLimit:
+        description: "Cap jobs scored this run (blank = stage default)"
+        required: false
+      draftLimit:
+        description: "Cap drafts written this run (blank = stage default)"
+        required: false
+
+concurrency:
+  # A slow run must never overlap the next scheduled one: the pipeline is idempotent,
+  # but two concurrent runs would double the token spend for no extra work.
+  group: pipeline
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Trigger the pipeline
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          PIPELINE_TRIGGER_SECRET: ${{ secrets.PIPELINE_TRIGGER_SECRET }}
+          SCORE_LIMIT: ${{ inputs.scoreLimit }}
+          DRAFT_LIMIT: ${{ inputs.draftLimit }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${APP_URL:-}" ] || [ -z "${PIPELINE_TRIGGER_SECRET:-}" ]; then
+            echo "::error::Set the APP_URL and PIPELINE_TRIGGER_SECRET repository secrets."
+            exit 1
+          fi
+
+          body='{}'
+          [ -n "${SCORE_LIMIT:-}" ] && body=$(jq -cn --argjson v "$SCORE_LIMIT" '{scoreLimit:$v}')
+          [ -n "${DRAFT_LIMIT:-}" ] && body=$(echo "$body" | jq -c --argjson v "$DRAFT_LIMIT" '.draftLimit=$v')
+
+          # --fail-with-body so a non-2xx still prints why before the step fails.
+          response=$(curl -sS --fail-with-body \
+            --max-time 900 \
+            -X POST "${APP_URL%/}/api/pipeline/run" \
+            -H "Authorization: Bearer ${PIPELINE_TRIGGER_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d "$body")
+
+          echo "$response" | jq .
+
+          # Surface the run on the Actions summary page, so the schedule is observable
+          # without opening the app.
+          {
+            echo "### Pipeline run"
+            echo ""
+            echo "$response" | jq -r '
+              "| stage | result |",
+              "|---|---|",
+              "| ingest | \(.ingest.seen) seen, \(.ingest.inserted) new |",
+              "| scoring | \(.scoring.scored) scored, \(.scoring.failed) failed |",
+              "| drafting | \(.drafting.drafted) drafted, \(.drafting.failed) failed |",
+              "| cost | $\(.totals.costUsd // "unknown") |",
+              "| status | \(.totals.status) |"
+            '
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # A partial run is not a failed workflow — per-item errors are recorded on the
+          # run row by design. Only a failed run turns the job red.
+          status=$(echo "$response" | jq -r '.totals.status')
+          if [ "$status" = "failed" ]; then
+            echo "::error::Pipeline run finished with status: failed"
+            exit 1
+          fi
+          if [ "$status" = "partial" ]; then
+            echo "::warning::Pipeline run finished with errors — see the Runs screen."
+          fi

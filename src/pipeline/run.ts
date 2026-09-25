@@ -2,7 +2,9 @@ import "server-only";
 
 import { failRun, finishRun, runStatusFor, startRun, type RunTotals } from "@/db/queries/runs";
 import type { RunError } from "@/db/schema";
+import { env } from "@/lib/env";
 import { log } from "@/lib/logger";
+import { notifyRun } from "@/lib/notify";
 
 import { runDraft, type DraftSummary } from "./drafting/draft";
 import { runIngest, type IngestSummary } from "./ingest";
@@ -23,6 +25,7 @@ export type PipelineResult = {
   scoring: ScoreSummary;
   drafting: DraftSummary;
   totals: RunTotals;
+  notified: boolean;
 };
 
 export async function runPipeline(
@@ -64,9 +67,27 @@ export async function runPipeline(
     };
 
     await finishRun(runId, totals);
-    logger.info({ runId, ...totals, ms: Date.now() - startedAt }, "pipeline run complete");
 
-    return { runId, ingest, scoring, drafting, totals };
+    // After the run is durably recorded, never before: the `runs` row is the record,
+    // the notification is a convenience, and `notifyRun` swallows its own failures so
+    // an unreachable webhook cannot fail a run that did its work.
+    const { sent } = await notifyRun({
+      newJobs: ingest.inserted,
+      scored: scoring.scored,
+      strong: scoring.strong,
+      drafted: drafting.drafted,
+      errors: errors.length,
+      costUsd: totals.costUsd,
+      status: totals.status,
+      appUrl: env.APP_URL,
+    });
+
+    logger.info(
+      { runId, ...totals, notified: sent, ms: Date.now() - startedAt },
+      "pipeline run complete",
+    );
+
+    return { runId, ingest, scoring, drafting, totals, notified: sent };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await failRun(runId, message);

@@ -24,6 +24,8 @@ const DEFAULT_LIMIT = 50;
 
 export type ScoreSummary = {
   scored: number;
+  /** Of those scored this run, how many landed in the `strong` tier. */
+  strong: number;
   failed: number;
   tokensIn: number;
   tokensOut: number;
@@ -39,6 +41,7 @@ export type ScoreSummary = {
 function emptySummary(): ScoreSummary {
   return {
     scored: 0,
+    strong: 0,
     failed: 0,
     tokensIn: 0,
     tokensOut: 0,
@@ -81,14 +84,14 @@ export async function runScore({ limit = DEFAULT_LIMIT } = {}): Promise<ScoreSum
 
   const outcomes = await mapWithConcurrency(queue, LIMITS.maxConcurrency, async (job) => {
     try {
-      const usage = await scoreJob({
+      const result = await scoreJob({
         job,
         schema,
         system,
         profileVersion: profile.version,
         validStrengthKeys,
       });
-      return { ok: true as const, usage };
+      return { ok: true as const, usage: result.usage, tier: result.tier };
     } catch (error) {
       const message = isLlmError(error)
         ? `${error.kind}: ${error.message}`
@@ -103,6 +106,7 @@ export async function runScore({ limit = DEFAULT_LIMIT } = {}): Promise<ScoreSum
   for (const outcome of outcomes) {
     if (outcome.ok) {
       summary.scored += 1;
+      if (outcome.tier === "strong") summary.strong += 1;
       totals = addUsage(totals, outcome.usage);
     } else {
       summary.failed += 1;
@@ -177,5 +181,5 @@ async function scoreJob(params: {
       },
     });
 
-  return usage;
+  return { usage, tier: row.tier };
 }
