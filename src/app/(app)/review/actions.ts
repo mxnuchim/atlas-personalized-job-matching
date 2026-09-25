@@ -8,21 +8,21 @@ import {
   canEdit,
   decideDraft,
   getDraft,
+  markDraftSent,
   saveDraftEdit,
-  setDraftRecipient,
 } from "@/db/queries/drafts";
+import { recordSend } from "@/db/queries/outreach";
 import { log } from "@/lib/logger";
 import { requireSession } from "@/lib/session";
-import { recipientSchema } from "@/lib/sending/guardrails";
-
-import { sendDraft } from "./send";
 
 /**
  * Review-queue mutations (PRD §6: mutations are Server Actions). Every one checks the
  * session server-side — hiding a button is not authorisation.
  *
- * Nothing here sends. Approval marks a draft ready; M4 owns delivery and the §11
- * guardrails that gate it.
+ * Atlas does not send. It drafts, you copy, you send from your own mail client, and
+ * you tell Atlas you did so it can track the thread. That keeps the human in the loop
+ * by construction rather than by a flag, and removes every deliverability concern that
+ * came with sending on your behalf.
  */
 
 const logger = log("review");
@@ -30,7 +30,6 @@ const logger = log("review");
 const idSchema = z.object({ draftId: z.uuid() });
 const editSchema = z.object({
   draftId: z.uuid(),
-  // Generous, but bounded: the column is unbounded text and this is a short email.
   editedBody: z.string().trim().min(1, "A draft cannot be empty.").max(4000),
 });
 
@@ -52,7 +51,6 @@ async function decide(input: unknown, status: "approved" | "skipped"): Promise<A
 
   const existing = await getDraft(parsed.data.draftId);
   if (!existing) return { ok: false, error: "That draft no longer exists." };
-
   if (!canDecide(existing.status)) {
     return { ok: false, error: `This draft is already ${existing.status}.` };
   }
@@ -89,57 +87,26 @@ export async function saveDraftEditAction(input: unknown): Promise<ActionResult>
   return { ok: true };
 }
 
-const recipientInput = z.object({
-  draftId: z.uuid(),
-  // Empty clears it. §11 requires a verified recipient, and a blank field is an honest
-  // "not known yet" — far better than a guess that bounces.
-  recipient: z.string().trim(),
-});
-
-export async function setRecipientAction(input: unknown): Promise<ActionResult> {
-  await requireSession();
-
-  const parsed = recipientInput.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "That draft reference is not valid." };
-
-  const { draftId, recipient } = parsed.data;
-  if (recipient.length > 0) {
-    const valid = recipientSchema.safeParse(recipient);
-    if (!valid.success) {
-      return { ok: false, error: valid.error.issues[0]?.message ?? "That address is not valid." };
-    }
-  }
-
-  const existing = await getDraft(draftId);
-  if (!existing) return { ok: false, error: "That draft no longer exists." };
-  if (existing.status === "sent") {
-    return { ok: false, error: "This draft was already sent; its recipient is fixed." };
-  }
-
-  await setDraftRecipient(draftId, recipient.length > 0 ? recipient : null);
-  logger.info({ draftId, cleared: recipient.length === 0 }, "recipient set");
-  revalidatePath("/review");
-  return { ok: true };
-}
-
-export type SendActionResult =
-  { ok: true; dryRun: boolean } | { ok: false; error: string; blockedBy?: string[] };
-
 /**
- * Send an approved draft. Every §11 guardrail is re-evaluated inside `sendDraft`,
- * immediately before delivery — the readout the UI rendered could be seconds stale,
- * and the daily cap in particular moves underneath it.
+ * You sent it yourself; this records that so the role enters the pipeline tracker.
+ * Atlas has no way to observe your mail client, so this is the only honest signal.
  */
-export async function sendDraftAction(input: unknown): Promise<SendActionResult> {
+export async function markSentAction(input: unknown): Promise<ActionResult> {
   await requireSession();
 
   const parsed = idSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "That draft reference is not valid." };
 
-  const result = await sendDraft(parsed.data.draftId);
+  const existing = await getDraft(parsed.data.draftId);
+  if (!existing) return { ok: false, error: "That draft no longer exists." };
+  if (existing.status === "sent") return { ok: false, error: "Already marked as sent." };
 
+  await markDraftSent(parsed.data.draftId);
+  await recordSend({ matchId: existing.matchId });
+
+  logger.info({ draftId: existing.id }, "marked sent by hand");
   revalidatePath("/review");
   revalidatePath("/pipeline");
   revalidatePath("/today");
-  return result;
+  return { ok: true };
 }

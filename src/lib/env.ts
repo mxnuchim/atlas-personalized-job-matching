@@ -8,12 +8,6 @@ import { z } from "zod";
  * fast; later-milestone values are optional so the app boots without them.
  */
 
-/** Parse "true"/"false"/"1"/"0"/"yes"/"on" into a boolean; undefined → false. */
-const boolFromString = z.preprocess(
-  (v) => (typeof v === "string" ? ["1", "true", "yes", "on"].includes(v.toLowerCase()) : false),
-  z.boolean(),
-);
-
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
@@ -53,19 +47,6 @@ const envSchema = z.object({
   // verify allocates makes unbounded attempts a cheap denial-of-service too).
   LOGIN_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(100).default(10),
   LOGIN_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
-
-  // M4 — Gmail sending
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
-  GMAIL_OAUTH_REFRESH_TOKEN: z.string().optional(),
-  SENDING_ADDRESS: z.email().optional(),
-  DAILY_SEND_CAP: z.coerce.number().int().positive().default(30),
-  AUTO_SEND: boolFromString, // defaults off, ships off (PRD §11)
-  /**
-   * Build and validate the message, run every guardrail, but stop short of handing it
-   * to Gmail. For verifying the chain end to end without mailing a stranger.
-   */
-  GMAIL_DRY_RUN: boolFromString,
 
   // Ops
   TZ: z.string().default("UTC"),

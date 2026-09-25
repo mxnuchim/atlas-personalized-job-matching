@@ -518,3 +518,44 @@ consent flow.
 **Rule.** When configuration is missing, show the steps, not the variable names. If the
 interface names a route, make it a link. The test is whether someone could finish setup
 without leaving the page — if they have to ask, the page did not do its job.
+
+---
+
+## 2026-09-25 12:35 — Build the smallest thing that delivers the value
+
+**Problem.** Sending took three commits, a vendor SDK, an OAuth consent flow, a warm-up
+ramp, nine guardrails, RFC 2822 construction, thread classification and a reply poller —
+and was then deleted without ever having sent an email.
+
+**Root cause.** The PRD specified Gmail sending, so it got built as specified. Nobody
+asked the prior question: what does the user actually do with a draft? They copy it and
+send it from the client they already have open. The automation was solving the cheap
+half of the problem while inheriting all of the expensive half — deliverability,
+identity warm-up, bounce monitoring, OAuth token lifetimes.
+
+Not wasted, exactly: the §11 rules are now understood, and the contact extraction and
+copy-ready framing came directly out of building the heavier thing. But three commits
+is a costly way to learn it.
+
+**Rule.** Before automating an action, ask what it costs the user to do by hand. Two
+seconds of copy-paste does not justify a vendor integration, an OAuth flow and a
+reputation-management subsystem. Automate the part that is genuinely expensive — here,
+deciding *what to say* — and leave the cheap part to the human.
+
+---
+
+## 2026-09-25 12:30 — Delete the schema when you delete the feature
+
+**Problem.** Ripping out Gmail left `outreach.gmail_thread_id` and `gmail_message_id`
+behind. Nothing wrote them, nothing read them, and a migration to remove them felt like
+unnecessary churn.
+
+**Root cause.** Columns are cheap to leave, so they get left. But the next person reads
+them as evidence that Atlas correlates Gmail threads — a capability it no longer has —
+and builds on an assumption that is false.
+
+**Fix.** Dropped in migration 0005. `outreach.bounced_at` was kept, with a comment
+saying explicitly that nothing sets it automatically and it exists for manual marking.
+
+**Rule.** Schema is documentation that the type system enforces. A column that implies a
+capability the app does not have is worse than no column, because it is trusted.

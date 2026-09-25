@@ -33,23 +33,14 @@ const BOUNDARIES: { dir: string; violations: { label: string; pattern: RegExp }[
       },
     ],
   },
-  {
-    dir: join("lib", "gmail"),
-    violations: [
-      {
-        label: "imports the Google SDK",
-        pattern: /(?:from|require\()\s*["'](?:googleapis|google-auth-library)["']/,
-      },
-    ],
-  },
 ];
 
 /** Secrets belong to whichever layer owns them; env.ts only declares the names. */
 const SECRET_PATTERN = {
   label: "references a secret",
-  pattern: /[A-Z0-9_]*_API_KEY\b|GOOGLE_CLIENT_SECRET|GMAIL_OAUTH_REFRESH_TOKEN/,
+  pattern: /[A-Z0-9_]*_API_KEY\b/,
 };
-const SECRET_DIRS = [join("lib", "llm"), join("lib", "gmail")];
+const SECRET_DIRS = [join("lib", "llm")];
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {

@@ -1,7 +1,6 @@
 /**
- * Bounded-concurrency map, preserving input order in the results. Domain-agnostic:
- * the LLM pipeline and the Gmail poller both need it, and neither should have to
- * import the other to get it.
+ * Bounded-concurrency map, preserving input order in the results. Kept domain-agnostic
+ * so any stage can bound its own fan-out without importing another one to get it.
  *
  * Rejections are not swallowed — callers wrap each item's work in its own try/catch so
  * one failure records an error and the run continues (PRD §12).

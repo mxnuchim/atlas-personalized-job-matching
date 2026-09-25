@@ -2,6 +2,8 @@ import { and, desc, eq, inArray, notExists, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { drafts, evidence, jobs, matches, type Draft, type NewDraft } from "@/db/schema";
+import { extractContact } from "@/lib/contact";
+import { htmlToText } from "@/lib/html";
 import type { FitTier } from "@/lib/scoring";
 
 /** Matches that qualify for a draft but do not have one yet — the drafter's queue. */
@@ -54,6 +56,12 @@ export type DraftRow = {
   whyYou: string;
   /** The cited evidence, resolved. Null when the model failed to cite anything real. */
   evidence: { claim: string; context: string | null; metric: string | null } | null;
+  /**
+   * An address found in the posting, if any. Extracted at read time rather than stored,
+   * so it always reflects the current description and needs no re-ingest to improve.
+   */
+  contactEmail: string | null;
+  contactIsPersonal: boolean;
 };
 
 const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
@@ -61,6 +69,16 @@ const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
   month: "short",
   timeZone: "UTC",
 });
+
+/**
+ * Postings arrive as HTML, so decode before looking for an address. Extracted at read
+ * time rather than stored: it always reflects the current description, and improving
+ * the matcher needs no re-ingest.
+ */
+function contactOf(description: string | null): { email: string | null; personal: boolean } {
+  const found = extractContact(htmlToText(description ?? ""));
+  return { email: found?.email ?? null, personal: found?.personal ?? false };
+}
 
 /**
  * `awaiting` is pending + approved: an approved draft has not gone anywhere yet, so it
@@ -88,25 +106,30 @@ export async function listDrafts(
     .orderBy(desc(matches.overall), desc(drafts.createdAt))
     .limit(limit);
 
-  return rows.map(({ drafts: d, matches: m, jobs: j, evidence: e }) => ({
-    id: d.id,
-    matchId: d.matchId,
-    status: d.status,
-    subject: d.subject,
-    body: d.body,
-    editedBody: d.editedBody,
-    recipient: d.recipient,
-    strengthKeys: d.strengthKeys,
-    createdAtLabel: DATE_FORMAT.format(d.createdAt),
-    title: j.title,
-    company: j.company,
-    location: j.location,
-    url: j.url,
-    overall: m.overall,
-    tier: m.tier as FitTier,
-    whyYou: m.whyYou,
-    evidence: e ? { claim: e.claim, context: e.context, metric: e.metric } : null,
-  }));
+  return rows.map(({ drafts: d, matches: m, jobs: j, evidence: e }) => {
+    const contact = contactOf(j.description);
+    return {
+      id: d.id,
+      matchId: d.matchId,
+      status: d.status,
+      subject: d.subject,
+      body: d.body,
+      editedBody: d.editedBody,
+      recipient: d.recipient,
+      strengthKeys: d.strengthKeys,
+      createdAtLabel: DATE_FORMAT.format(d.createdAt),
+      title: j.title,
+      company: j.company,
+      location: j.location,
+      url: j.url,
+      overall: m.overall,
+      tier: m.tier as FitTier,
+      whyYou: m.whyYou,
+      evidence: e ? { claim: e.claim, context: e.context, metric: e.metric } : null,
+      contactEmail: contact.email,
+      contactIsPersonal: contact.personal,
+    };
+  });
 }
 
 export async function countDraftsByStatus(): Promise<Record<Draft["status"], number>> {

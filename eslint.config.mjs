@@ -10,7 +10,7 @@ const eslintConfig = defineConfig([
   // boundary.test.ts covers the other half of the rule — bare API-key references.
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/lib/llm/**", "src/lib/gmail/**"],
+    ignores: ["src/lib/llm/**"],
     rules: {
       "no-restricted-imports": [
         "error",

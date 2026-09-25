@@ -561,3 +561,53 @@ credential that grants the whole mailbox rather than two scopes. Worth revisitin
 Cloud Console step proves to be friction.
 
 **Files.** `src/components/gmail-setup.tsx`, `src/app/(app)/settings/page.tsx`
+
+---
+
+## 2026-09-25 12:35 — Drop sending entirely; make the draft copy-ready
+
+**Context.** Explicit call: drop the Gmail/OAuth path. A Google Cloud project, a consent
+screen, publishing status, refresh-token expiry and a separate warmed-up identity is a
+great deal of machinery in front of something that takes two seconds by hand. The
+product is the *draft*, not the delivery.
+
+**Action — removed.** `lib/gmail/` (config, send, read, errors), both OAuth route
+handlers, `lib/sending/` in full (guardrails, warm-up ramp, RFC 2822 construction,
+thread classification), `pipeline/replies.ts`, `review/send.ts`, the `GmailSetup` panel,
+the `googleapis` dependency, six env vars, and the Gmail half of the vendor boundary.
+Also dropped `outreach.gmail_thread_id` / `gmail_message_id` — schema that implies a
+capability the app no longer has is worse than no schema.
+
+**Action — added.**
+
+- **`lib/contact.ts`** — pulls an address out of a posting, preferring a person over a
+  role mailbox (`maria.chen@` beats `careers@`), and rejecting noreply addresses,
+  applicant-tracking domains and asset filenames the regex otherwise catches. Extracted
+  at read time, not stored, so it always reflects the current description and improving
+  the matcher needs no re-ingest. Most postings have none — the card says so plainly
+  rather than showing an empty field that looks broken.
+- **`components/copy-button.tsx`** — the label swap is the confirmation; no toast, since
+  this is the most-used control on the screen. Handles a refused clipboard by saying so
+  rather than showing a success state for something that did not happen.
+- **The draft prompt, rewritten for YC-style punch.** Five short sentences under ~90
+  words: who they are, the proof with its real number, the connection to this posting,
+  the portfolio link, the ask. An explicit banned-phrase list ("I hope this email finds
+  you well", "I came across your posting", "I am excited to") and explicit formatting
+  rules, because the output gets pasted straight into a mail client.
+- **"Mark sent"** replaces "Send". Atlas cannot observe your mail client, so the only
+  honest signal is you telling it.
+
+**Result.** 122 tests green; lint, typecheck and build clean. Two drafts regenerated and
+read end to end — 71 and 83 words, lowercase concrete subjects, real metrics
+(250K+ inferences at <400ms; +50% feature velocity, 80%+ coverage, −60% bugs), a
+specific tie to the posting, a 20-minute ask, first-name sign-off. The copy button was
+verified in the browser: 519 characters, subject then blank line then body through the
+sign-off, and the label confirms.
+
+`getSendStats` now reports `bounces` and `complaints` as `null` — with no mailbox
+access neither is observable, and a zero would claim a signal that does not exist.
+
+**Files.** `src/lib/contact.ts`, `src/components/{copy-button,review-queue}.tsx`,
+`src/pipeline/drafting/prompt.ts`, `src/app/(app)/review/{actions,page}.tsx`,
+`src/db/queries/{drafts,outreach}.ts`, `src/db/schema/outreach.ts`, `src/lib/env.ts`,
+`src/pipeline/run.ts`, `eslint.config.mjs`, `drizzle/0005`

@@ -7,7 +7,6 @@ import { ReviewQueue } from "@/components/review-queue";
 import { StatStrip } from "@/components/stat-strip";
 import { countDraftsByStatus, listDrafts } from "@/db/queries/drafts";
 import { getCurrentProfile } from "@/db/queries/profile";
-import { assessDrafts } from "./send";
 
 export const metadata: Metadata = {
   title: "Review",
@@ -27,18 +26,14 @@ export default async function ReviewPage() {
     (profile?.strengths ?? []).map((s) => [s.key, s.label]),
   );
 
-  // The same computation the send gate runs, so the readout can never promise a send
-  // the server will refuse.
-  const decisions = await assessDrafts(drafts);
-
   return (
     <div className="space-y-8">
       <PageHeader
         title="Review"
         description={
           drafts.length > 0
-            ? `${drafts.length} awaiting you. Nothing sends without your approval.`
-            : "Drafts wait here for your decision."
+            ? `${drafts.length} ready to copy. You send them; Atlas tracks what you sent.`
+            : "Drafts wait here, ready to copy and send."
         }
       />
 
@@ -57,7 +52,7 @@ export default async function ReviewPage() {
           description="Strong matches get a draft on the next run. Each one builds on the strengths that role rewards and cites something real you've done."
         />
       ) : (
-        <ReviewQueue drafts={drafts} strengthLabels={strengthLabels} decisions={decisions} />
+        <ReviewQueue drafts={drafts} strengthLabels={strengthLabels} />
       )}
     </div>
   );

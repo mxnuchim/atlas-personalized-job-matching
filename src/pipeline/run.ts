@@ -6,7 +6,6 @@ import { log } from "@/lib/logger";
 
 import { runDraft, type DraftSummary } from "./drafting/draft";
 import { runIngest, type IngestSummary } from "./ingest";
-import { runReplyCheck, type ReplySummary } from "./replies";
 import { runScore, type ScoreSummary } from "./scoring/score";
 
 /**
@@ -23,7 +22,6 @@ export type PipelineResult = {
   ingest: IngestSummary;
   scoring: ScoreSummary;
   drafting: DraftSummary;
-  replies: ReplySummary;
   totals: RunTotals;
 };
 
@@ -35,10 +33,6 @@ export async function runPipeline(
   const startedAt = Date.now();
 
   try {
-    // Replies first: a reply must suppress contact *before* this run drafts anything
-    // new for that role, or the run can act on a state it is about to learn is stale.
-    const replies = await runReplyCheck();
-
     const ingest = await runIngest();
     const scoring = await runScore(options.scoreLimit ? { limit: options.scoreLimit } : {});
     const drafting = await runDraft(options.draftLimit ? { limit: options.draftLimit } : {});
@@ -49,10 +43,9 @@ export async function runPipeline(
         .map((r) => ({ stage: "ingest", message: `${r.source}: ${r.error}` })),
       ...scoring.errors.map((e) => ({ stage: "score", job_id: e.jobId, message: e.message })),
       ...drafting.errors,
-      ...replies.errors,
       // A skipped stage is not an error, but it must be visible — otherwise a run that
       // silently did nothing looks identical to one with nothing to do.
-      ...stageSkips({ scoring, drafting, replies }),
+      ...stageSkips({ scoring, drafting }),
     ];
 
     const totals: RunTotals = {
@@ -71,18 +64,9 @@ export async function runPipeline(
     };
 
     await finishRun(runId, totals);
-    logger.info(
-      {
-        runId,
-        ...totals,
-        replied: replies.replied,
-        bounced: replies.bounced,
-        ms: Date.now() - startedAt,
-      },
-      "pipeline run complete",
-    );
+    logger.info({ runId, ...totals, ms: Date.now() - startedAt }, "pipeline run complete");
 
-    return { runId, ingest, scoring, drafting, replies, totals };
+    return { runId, ingest, scoring, drafting, totals };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await failRun(runId, message);
@@ -91,17 +75,10 @@ export async function runPipeline(
   }
 }
 
-function stageSkips(stages: {
-  scoring: ScoreSummary;
-  drafting: DraftSummary;
-  replies: ReplySummary;
-}): RunError[] {
+function stageSkips(stages: { scoring: ScoreSummary; drafting: DraftSummary }): RunError[] {
   const skips: RunError[] = [];
   if (stages.scoring.skipped) skips.push({ stage: "score", message: stages.scoring.skipped });
   if (stages.drafting.skipped) skips.push({ stage: "draft", message: stages.drafting.skipped });
-  // Not connecting Gmail is a normal state before M4 is set up, not a failure — but a
-  // run that silently polled nothing must still say so.
-  if (stages.replies.skipped) skips.push({ stage: "replies", message: stages.replies.skipped });
   return skips;
 }
 
