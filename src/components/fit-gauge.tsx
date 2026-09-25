@@ -2,6 +2,7 @@
 
 import { motion, useReducedMotion } from "motion/react";
 
+import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { FitTier } from "@/lib/scoring";
 
@@ -117,7 +118,7 @@ export function FitGauge({ value, tier, size = "sm", delay = 0, className }: Fit
             reduced
               ? { duration: 0 }
               : // Spring, not easing: the needle settles rather than stopping dead.
-                { type: "spring", stiffness: 90, damping: 20, mass: 0.9, delay }
+                { ...SPRING.gauge, delay }
           }
         />
       </svg>

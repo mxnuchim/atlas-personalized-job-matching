@@ -67,6 +67,15 @@
   --radius: 0.75rem;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
+  /* Motion — the CSS mirror of src/lib/motion.ts, for non-JS transitions
+     (hover, press, focus rings, tint). Kept byte-for-byte in step with that module. */
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 320ms;
+
   /* Light — paper / surface / ink / muted / hairline */
   --background: #f5f6f8;
   --foreground: #16181d;
@@ -174,5 +183,34 @@
   /* The score/gauge/titles are the type moment — Space Grotesk. */
   .font-display {
     font-family: var(--font-display), var(--font-sans);
+  }
+
+  /* Interactive surfaces share one transition vocabulary. Individual components still
+     opt into what they animate; this only sets the curve and speed when they do. */
+  a,
+  button,
+  [role="button"],
+  input,
+  textarea,
+  select,
+  summary {
+    transition-timing-function: var(--ease-standard);
+    transition-duration: var(--duration-fast);
+  }
+}
+
+/*
+  Global reduced-motion guard (INTERFACE §5 / §8). Collapses every CSS transition and
+  animation to instant — not slower — for anyone who asks for less motion. JS-driven
+  motion is handled separately via `useReducedMotion()` at each call site.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -84,26 +84,44 @@ bordered-not-shadowed; follow that.
 
 ## 5. Motion
 
-Restrained by design — premium means craft, not quantity. Library: **`motion`**
-(package name), imported from `motion/react`. Never `framer-motion`, which is present
-only as a transitive dependency.
+Premium means **craft, not quantity** — the Revolut/Monzo bar (precise, calm) with the
+Instagram/Snapchat feel (butter-smooth, physical, 60fps). M6 expanded this section from the
+original five-item set: the goal is fidelity everywhere an interaction already happens, not
+motion sprinkled on decoration. Anything not serving clarity or feedback still does not animate,
+and §7's anti-patterns (fade-up on every card, hover-lift on every tile) still hold.
 
-The complete permitted set:
+Library: **`motion`**, imported from `motion/react`. Never `framer-motion` (transitive only).
 
-1. **One orchestrated reveal** — Today's top matches stagger in once on load. Once.
-   *Built:* `match-card.tsx`, 70ms per card, `[0.22, 1, 0.36, 1]`.
-2. **Score gauges animate 0 → value once**, on first paint only. Not on re-render, not
-   on scroll. *Built:* `fit-gauge.tsx`, spring `{ stiffness: 90, damping: 20, mass: 0.9 }`.
-3. **Approve & send** — optimistic status flip, row slides out, toast naming the
-   company. Rolls back on failure. *Built (decide half):* `review-queue.tsx` uses
-   `useOptimistic`; the card's disappearance **is** the confirmation, so there is no
-   second success animation on top of it. Sending lands in M4.
-4. **Status changes** — optimistic with rollback.
-5. **Skeletons, never spinners.**
+**Tokens, not magic numbers.** All easings, springs and durations live in
+[`src/lib/motion.ts`](../src/lib/motion.ts) (`EASE`, `DURATION`, `SPRING`, `TRANSITION`,
+`REVEAL`, `STAGGER_STEP`, `PRESSABLE`); their CSS mirror is `--ease-*` / `--duration-*` in
+`globals.css`. House curve is `EASE.emphasized` `[0.22, 1, 0.36, 1]`. Components import the
+tokens — no inline curves or durations. `motion.test.ts` guards their shape.
 
-`prefers-reduced-motion` collapses all of it to instant. Not reduced — instant.
+**Rules.** Animate only `transform` and `opacity` (GPU); never layout properties. Sustained
+60fps; no interaction may cause a long task. Durations stay short (≤ `DURATION.slow`, 320ms).
 
-Anything not on this list does not animate.
+The permitted set (✓ built · ◇ M6 target):
+
+1. ✓ **One orchestrated reveal** — Today's top matches stagger in once on load (`match-card.tsx`,
+   `REVEAL` + `TRANSITION.enter`, `STAGGER_STEP`). Once, on first paint only.
+2. ✓ **Score gauge sweeps 0 → value once** (`fit-gauge.tsx`, `SPRING.gauge`). ◇ number counts up
+   with it.
+3. ✓ **Optimistic status flips with rollback** — approve/skip in `review-queue.tsx` via
+   `useOptimistic`; the row's disappearance *is* the confirmation (no second success animation).
+4. ◇ **Press feedback** on every interactive control (`PRESSABLE`, scale ~0.97, spring back).
+5. ◇ **Hover** only where it means something (rows, cards, links) — a quiet lift/tint.
+6. ◇ **Focus-visible** rings animate in; inputs transition on focus.
+7. ◇ **Nav active indicator slides** between tabs (shared `layoutId`), never cuts.
+8. ◇ **Match drawer opens as a shared-element transition** from its row — the signature moment.
+9. ◇ **List choreography** — approve/skip collapses height and neighbors settle; matches re-sort
+   smoothly (layout animations).
+10. ◇ **Route/page transitions** — a fast, subtle cross-fade/settle; no flash.
+11. ◇ **Toasts** — choreographed enter/exit and stacking.
+12. ✓ **Skeletons, never spinners.** Content transitions in, no pop.
+
+`prefers-reduced-motion` collapses all of it to **instant** — not slower. JS motion via
+`useReducedMotion()` at each call site; CSS motion via the global guard in `globals.css`.
 
 ---
 

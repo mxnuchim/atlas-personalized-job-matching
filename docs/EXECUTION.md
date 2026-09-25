@@ -659,3 +659,34 @@ line are code-verified and unit-tested.
 **Files.** `src/lib/{schedule,notify}.ts`, `src/lib/{schedule,notify}.test.ts`,
 `.github/workflows/pipeline.yml`, `src/pipeline/run.ts`, `src/pipeline/scoring/score.ts`,
 `src/lib/env.ts`, `.env.example`
+
+---
+
+## 2026-09-25 13:50 — M6 phase 1: the motion-token foundation
+
+**Context.** M6 is the design pass — the premium bar (Revolut/Monzo precision, Instagram/
+Snapchat fluidity); brief in [M6-BRIEF.md](M6-BRIEF.md). Before adding micro-interactions
+across the app, motion needs one vocabulary: the two existing animations (the gauge sweep,
+Today's reveal) carried their springs and curves as inline magic numbers, which drift the
+moment a third animation copies a slightly different value.
+
+**Action.**
+
+- **`src/lib/motion.ts`** — the single source of motion truth: `EASE` (house curve
+  `[0.22,1,0.36,1]`), `DURATION` (≤320ms), `SPRING` (gauge/snappy/press/soft),
+  `TRANSITION`, `REVEAL`, `STAGGER_STEP`, `PRESSABLE`. GPU-only by convention.
+- **`globals.css`** — the CSS mirror (`--ease-*`, `--duration-*`) for non-JS transitions,
+  a shared curve/speed on interactive elements, and a global `prefers-reduced-motion` guard
+  that collapses every CSS transition/animation to instant.
+- Refactored `fit-gauge.tsx` and `match-card.tsx` onto the tokens — no inline springs or
+  curves remain.
+- Rewrote **INTERFACE §5** from the original five-item set to the expanded-but-disciplined M6
+  system (✓ built / ◇ target), in this commit per INTERFACE's own rule.
+- **`motion.test.ts`** guards the tokens (durations ordered and short, béziers well-formed,
+  springs physical, press scales inward).
+
+**Result.** 149 tests green (5 new); lint, typecheck and production build clean. No behaviour
+change yet — this is the base the rest of M6 builds on.
+
+**Files.** `src/lib/{motion,motion.test}.ts`, `src/app/globals.css`,
+`src/components/{fit-gauge,match-card}.tsx`, `docs/{INTERFACE,M6-BRIEF}.md`

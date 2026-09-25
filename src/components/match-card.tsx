@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { FitGauge } from "@/components/fit-gauge";
 import { TierChip } from "@/components/tier-chip";
 import type { MatchRow } from "@/db/queries/matches";
+import { REVEAL, STAGGER_STEP, TRANSITION } from "@/lib/motion";
 
 /**
  * A top match on Today. Cards here, a table on Matches: Today is a short, considered
@@ -26,7 +27,7 @@ export function MatchCard({
   index?: number;
 }) {
   const reduced = useReducedMotion();
-  const delay = reduced ? 0 : index * 0.07;
+  const delay = reduced ? 0 : index * STAGGER_STEP;
 
   const topStrengths = [...match.strengthMatches]
     .sort((a, b) => b.rewarded - a.rewarded)
@@ -34,9 +35,9 @@ export function MatchCard({
 
   return (
     <motion.article
-      initial={reduced ? false : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={reduced ? { duration: 0 } : { duration: 0.32, ease: [0.22, 1, 0.36, 1], delay }}
+      initial={reduced ? false : REVEAL.initial}
+      animate={REVEAL.animate}
+      transition={reduced ? { duration: 0 } : { ...TRANSITION.enter, delay }}
       className="bg-card rounded-xl border p-5"
     >
       <div className="flex items-start gap-5">
