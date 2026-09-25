@@ -30,10 +30,19 @@ const envSchema = z.object({
   // Pipeline trigger (M1+): guards POST /api/pipeline/run
   PIPELINE_TRIGGER_SECRET: z.string().optional(),
 
-  // M2 — scoring & drafting
+  // M2 — scoring & drafting. Provider-agnostic: src/lib/llm resolves these and is
+  // the only module that reads an API key or knows a provider exists (PRD §12).
+  LLM_PROVIDER: z.enum(["anthropic", "openai", "google", "groq"]).default("openai"),
+  MODEL_SCORING: z.string().default("gpt-5-mini"),
+  MODEL_DRAFTING: z.string().default("gpt-5.2"),
   ANTHROPIC_API_KEY: z.string().optional(),
-  MODEL_SCORING: z.string().default("claude-sonnet-4-5"),
-  MODEL_DRAFTING: z.string().default("claude-opus-4-1"),
+  OPENAI_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  GROQ_API_KEY: z.string().optional(),
+  /** Parallel LLM calls per run. Keeps a 50-job run off the provider's rate limit. */
+  LLM_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(3),
+  /** Retries *after* the first attempt, per call. */
+  LLM_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
 
   // M4 — Gmail sending
   GOOGLE_CLIENT_ID: z.string().optional(),
@@ -45,20 +54,28 @@ const envSchema = z.object({
 
   // Ops
   TZ: z.string().default("UTC"),
-  LOG_LEVEL: z
-    .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
-    .default("info"),
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
 });
 
 export type Env = z.infer<typeof envSchema>;
 
-function loadEnv(): Env {
-  // Allow `next build` in CI without real secrets (schema is still the contract).
-  if (process.env.SKIP_ENV_VALIDATION === "1" || process.env.SKIP_ENV_VALIDATION === "true") {
-    return process.env as unknown as Env;
-  }
+/**
+ * Placeholders for the hard-required keys so `next build` can run in CI without real
+ * secrets. We still parse through the real schema rather than casting `process.env`,
+ * so every default (models, caps, log level) is applied and the types stay honest.
+ */
+const BUILD_PLACEHOLDERS = {
+  DATABASE_URL: "postgres://build:build@localhost:5432/build",
+  AUTH_SECRET: "build-only-placeholder-not-a-real-secret",
+} as const;
 
-  const parsed = envSchema.safeParse(process.env);
+function loadEnv(): Env {
+  const skipValidation =
+    process.env.SKIP_ENV_VALIDATION === "1" || process.env.SKIP_ENV_VALIDATION === "true";
+
+  const source = skipValidation ? { ...BUILD_PLACEHOLDERS, ...process.env } : process.env;
+
+  const parsed = envSchema.safeParse(source);
   if (!parsed.success) {
     const lines = parsed.error.issues.map(
       (issue) => `  • ${issue.path.join(".") || "(root)"}: ${issue.message}`,

@@ -26,7 +26,10 @@ export function htmlToText(html: string): string {
   const decoded = html
     .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
     .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&([a-z0-9]+);/gi, (match, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? match);
+    .replace(
+      /&([a-z0-9]+);/gi,
+      (match, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? match,
+    );
 
   return decoded
     .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")

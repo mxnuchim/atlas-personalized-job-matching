@@ -2,24 +2,36 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/page-header";
 import { env } from "@/lib/env";
+import { MODELS, PROVIDER } from "@/lib/llm";
 import { RUN_HOURS } from "@/lib/schedule";
 
 export const metadata: Metadata = {
   title: "Settings",
 };
 
+// Config is read per request; without this the page is prerendered and the values
+// below would be whatever env held at build time.
+export const dynamic = "force-dynamic";
+
 const schedule = RUN_HOURS.map((h) => `${String(h).padStart(2, "0")}:00`).join(" and ");
 
-const rows: { label: string; value: string }[] = [
-  { label: "Sign-in", value: "Email & password" },
-  { label: "Sending", value: "Manual approval only — auto-send is off" },
-  { label: "Daily send cap", value: `${env.DAILY_SEND_CAP} / day` },
-  { label: "Schedule", value: `${schedule} (${env.TZ})` },
-  { label: "Scoring model", value: env.MODEL_SCORING },
-  { label: "Drafting model", value: env.MODEL_DRAFTING },
-];
+// Built per request, not at module scope — module-scope values freeze at build time,
+// so a deploy-time env change would not show here.
+function configRows(): { label: string; value: string }[] {
+  return [
+    { label: "Sign-in", value: "Email & password" },
+    { label: "Sending", value: "Manual approval only — auto-send is off" },
+    { label: "Daily send cap", value: `${env.DAILY_SEND_CAP} / day` },
+    { label: "Schedule", value: `${schedule} (${env.TZ})` },
+    { label: "Model provider", value: PROVIDER },
+    { label: "Scoring model", value: MODELS.scoring },
+    { label: "Drafting model", value: MODELS.drafting },
+  ];
+}
 
 export default function SettingsPage() {
+  const rows = configRows();
+
   return (
     <div className="space-y-8">
       <PageHeader title="Settings" description="How Atlas is configured for you." />
@@ -37,8 +49,8 @@ export default function SettingsPage() {
       </dl>
 
       <p className="text-muted-foreground text-sm">
-        These come from environment configuration for now. In-app editing of sources, your
-        profile, and your strengths arrives in later milestones.
+        These come from environment configuration for now. In-app editing of sources, your profile,
+        and your strengths arrives in later milestones.
       </p>
     </div>
   );
