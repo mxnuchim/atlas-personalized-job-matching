@@ -3,11 +3,7 @@
  * identical shadowed cards (PRD §10.5). Numerals are tabular and set in the
  * display face.
  */
-export function StatStrip({
-  items,
-}: {
-  items: { label: string; value: string; hint?: string }[];
-}) {
+export function StatStrip({ items }: { items: { label: string; value: string; hint?: string }[] }) {
   return (
     <dl className="divide-border grid grid-cols-1 divide-y rounded-xl border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       {items.map((item) => (

@@ -28,7 +28,10 @@ describe("normalizeGreenhouseJob", () => {
   });
 
   it("treats a physical location as non-remote and keeps the name", () => {
-    const job = normalizeGreenhouseJob({ ...baseJob, location: { name: "New York, NY" } }, "Vercel");
+    const job = normalizeGreenhouseJob(
+      { ...baseJob, location: { name: "New York, NY" } },
+      "Vercel",
+    );
     expect(job.remote).toBe(false);
     expect(job.location).toBe("New York, NY");
   });

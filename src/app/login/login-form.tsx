@@ -43,12 +43,18 @@ export function LoginForm() {
       </div>
 
       {state.error ? (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-destructive text-sm">
           {state.error}
         </p>
       ) : null}
 
-      <Button type="submit" size="lg" className="h-10 w-full" disabled={pending} aria-busy={pending}>
+      <Button
+        type="submit"
+        size="lg"
+        className="h-10 w-full"
+        disabled={pending}
+        aria-busy={pending}
+      >
         {pending ? "Signing in…" : "Sign in"}
       </Button>
     </form>

@@ -10,7 +10,10 @@ export function Logo({ className }: { className?: string }) {
       aria-hidden="true"
       role="img"
     >
-      <path d="M12 1.5 14.4 9.6 22.5 12 14.4 14.4 12 22.5 9.6 14.4 1.5 12 9.6 9.6Z" fill="currentColor" />
+      <path
+        d="M12 1.5 14.4 9.6 22.5 12 14.4 14.4 12 22.5 9.6 14.4 1.5 12 9.6 9.6Z"
+        fill="currentColor"
+      />
     </svg>
   );
 }
