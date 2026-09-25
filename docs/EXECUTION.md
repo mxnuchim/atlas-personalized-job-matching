@@ -200,3 +200,45 @@ is genuinely external.
 **Files.** `src/components/{fit-gauge,matches-table,match-drawer,tier-chip,match-card}.tsx`,
 `src/app/(app)/matches/{page,loading}.tsx`, `src/app/(app)/today/page.tsx`,
 `src/db/queries/matches.ts`, `src/components/fit-gauge.test.ts`, `src/lib/scoring.test.ts`
+
+---
+
+## 2026-09-25 09:35 — Visual pass on the M2 UI
+
+**Context.** "Review your own output visually and iterate — do not ship the first
+render." Every screen sits behind the Auth.js login, and entering a password is not
+something I do, so review ran against a temporary dev-only route rendering the same
+components with real data. It was deleted before the commit; `git status` and a grep
+confirm nothing references it.
+
+**Action.** Checked at 375px, 666px and 1280px, in both themes, and drove every
+keyboard path. Five real defects came out of it — none of which the build, types, lint
+or tests would ever have caught.
+
+1. **Escape dumped focus on `<body>`.** The drawer is opened programmatically, not from
+   a Radix trigger, so Radix had nothing to restore focus to. After one Escape, `j`/`k`
+   silently stopped working — the exact user this feature exists for. Fixed with
+   `onCloseAutoFocus` + `preventDefault`, which is where Radix actually owns close
+   focus; calling `focus()` from `onOpenChange` runs too early and is overwritten.
+2. **Every strength label was truncated** in the drawer — "Fintech-grade reliability +
+   AI syste…". Two `flex-1` siblings split the row 50/50, giving a decorative meter the
+   same width as the content. The meter is now fixed-width and the label takes the rest.
+3. **The table overflowed its rounded container on mobile** and was clipped rather than
+   scrollable. `table-layout: auto` sizes columns to content, which ignores declared
+   widths and makes `truncate` a no-op. `table-fixed` fixed both.
+4. **A 64px dial ate a quarter of a 375px card.** The gauge now carries its geometry in
+   viewBox units and scales through CSS, so one component covers both sizes without a
+   second instance or a second animation.
+5. **The `md` score was under-scaled** inside its ring — `text-lg` in a 64px dial, for
+   the number the whole product is about. Now `text-base sm:text-xl`.
+
+**Verified working:** `j`/`k`/`enter` navigation; Escape closing and returning focus to
+the originating row; `/` focusing the filter; the typing guard (`j` and `k` type into
+the filter instead of navigating); filtering narrowing 31 rows to 2; sort indicators;
+dark mode across table, cards and drawer; no horizontal overflow at 375px.
+
+**Not browser-verified:** `prefers-reduced-motion`. It is wired through
+`useReducedMotion()` in both animated components and collapses transitions to
+`duration: 0`, but no emulation was available here — it is code-verified only.
+
+**Files.** `src/components/{fit-gauge,match-drawer,matches-table}.tsx`

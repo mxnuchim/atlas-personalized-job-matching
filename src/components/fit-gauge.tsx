@@ -16,10 +16,15 @@ import type { FitTier } from "@/lib/scoring";
  * merely slower.
  */
 
+/**
+ * `box` and `stroke` are viewBox units, not pixels — the SVG scales to whatever CSS
+ * gives it, so a size can shrink on small screens without a second component or a
+ * second animation. On a 375px card a fixed 64px dial ate a quarter of the width.
+ */
 const SIZES = {
-  sm: { box: 44, stroke: 3.5, text: "text-[0.8125rem]" },
-  md: { box: 64, stroke: 4.5, text: "text-lg" },
-  lg: { box: 104, stroke: 6, text: "text-3xl" },
+  sm: { box: 44, stroke: 3.5, cls: "size-11", text: "text-[0.8125rem]" },
+  md: { box: 64, stroke: 4.5, cls: "size-12 sm:size-16", text: "text-base sm:text-xl" },
+  lg: { box: 104, stroke: 6, cls: "size-16 sm:size-26", text: "text-xl sm:text-3xl" },
 } as const;
 
 /**
@@ -62,7 +67,7 @@ type FitGaugeProps = {
 
 export function FitGauge({ value, tier, size = "sm", delay = 0, className }: FitGaugeProps) {
   const reduced = useReducedMotion();
-  const { box, stroke, text } = SIZES[size];
+  const { box, stroke, cls, text } = SIZES[size];
 
   // The arc is drawn as one dash of `trackLength`, and the score is revealed by
   // retracting the offset. Animating `strokeDashoffset` keeps the whole thing on
@@ -75,17 +80,15 @@ export function FitGauge({ value, tier, size = "sm", delay = 0, className }: Fit
 
   return (
     <div
-      className={cn("relative shrink-0", className)}
-      style={{ width: box, height: box }}
-      // The number below is the accessible value; the arc is decoration for it.
+      className={cn("relative shrink-0", cls, className)}
+      // `role="img"` + the label is the whole accessible story; the digits inside are
+      // decoration for a screen reader, not a second announcement.
       role="img"
       aria-label={`Fit ${clamped} out of 100, ${tier}`}
     >
       <svg
-        width={box}
-        height={box}
         viewBox={`0 0 ${box} ${box}`}
-        className="block -rotate-[220deg]"
+        className="block size-full -rotate-[220deg]"
         aria-hidden="true"
       >
         <circle
@@ -134,11 +137,5 @@ export function FitGauge({ value, tier, size = "sm", delay = 0, className }: Fit
 
 /** Matching skeleton so the table never shifts when real scores arrive. */
 export function FitGaugeSkeleton({ size = "sm" }: { size?: keyof typeof SIZES }) {
-  const { box } = SIZES[size];
-  return (
-    <div
-      className="bg-muted shrink-0 animate-pulse rounded-full"
-      style={{ width: box, height: box }}
-    />
-  );
+  return <div className={cn("bg-muted shrink-0 animate-pulse rounded-full", SIZES[size].cls)} />;
 }

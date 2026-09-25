@@ -29,16 +29,27 @@ export function MatchDrawer({
   match,
   strengthLabels,
   onOpenChange,
+  onCloseFocus,
 }: {
   match: MatchRow | null;
   strengthLabels: Record<string, string>;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Where focus should land on close. The drawer is opened programmatically rather
+   * than from a Radix trigger, so Radix has nothing to restore focus to and drops it
+   * on `<body>` — which silently kills `j`/`k` for anyone working by keyboard.
+   */
+  onCloseFocus?: () => void;
 }) {
   return (
     <Dialog.Root open={match !== null} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px] motion-reduce:animate-none dark:bg-black/50" />
         <Dialog.Content
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            onCloseFocus?.();
+          }}
           className={cn(
             "bg-card fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col shadow-2xl outline-none",
             "data-[state=closed]:animate-out data-[state=open]:animate-in border-l",
@@ -103,11 +114,11 @@ function DrawerBody({
             <ul className="mt-3 space-y-2.5">
               {rewarded.map((s) => (
                 <li key={s.strength_key} className="flex items-center gap-3">
-                  <span className="min-w-0 flex-1 truncate text-sm">
+                  <span className="min-w-0 flex-1 text-sm text-pretty">
                     {strengthLabels[s.strength_key] ?? s.strength_key}
                   </span>
-                  <Meter value={s.rewarded} />
-                  <span className="text-muted-foreground w-8 text-right text-xs tabular-nums">
+                  <Meter value={s.rewarded} className="w-20 shrink-0 sm:w-24" />
+                  <span className="text-muted-foreground w-7 shrink-0 text-right text-xs tabular-nums">
                     {s.rewarded}
                   </span>
                 </li>
@@ -123,8 +134,8 @@ function DrawerBody({
               <div key={key} className="flex items-center gap-3">
                 <dt className="text-muted-foreground w-20 shrink-0 text-sm">{label}</dt>
                 <dd className="flex flex-1 items-center gap-3">
-                  <Meter value={match.dimensions[key]} />
-                  <span className="text-muted-foreground w-8 text-right text-xs tabular-nums">
+                  <Meter value={match.dimensions[key]} className="flex-1" />
+                  <span className="text-muted-foreground w-7 shrink-0 text-right text-xs tabular-nums">
                     {match.dimensions[key]}
                   </span>
                 </dd>
@@ -193,9 +204,9 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 /** A quiet bar. Uses the accent, not a tier colour — this is magnitude, not verdict. */
-function Meter({ value }: { value: number }) {
+function Meter({ value, className }: { value: number; className?: string }) {
   return (
-    <span className="bg-muted h-1 flex-1 overflow-hidden rounded-full">
+    <span className={cn("bg-muted h-1 overflow-hidden rounded-full", className)}>
       <span
         className="bg-primary/70 block h-full rounded-full"
         style={{ width: `${Math.max(0, Math.min(100, value))}%` }}

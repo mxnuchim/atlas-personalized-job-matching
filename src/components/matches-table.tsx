@@ -207,7 +207,7 @@ export function MatchesTable({
         </p>
       ) : (
         <div className="overflow-hidden rounded-xl border">
-          <table className="w-full border-collapse text-sm">
+          <table className="w-full table-fixed border-collapse text-sm">
             <caption className="sr-only">
               Scored matches. Use j and k to move between rows, Enter to open one.
             </caption>
@@ -324,13 +324,11 @@ export function MatchesTable({
         match={openMatch}
         strengthLabels={strengthLabels}
         onOpenChange={(open) => {
-          if (!open) {
-            setOpenId(null);
-            // Return focus to the row that opened it — closing a dialog should not
-            // dump you at the top of the document.
-            rowRefs.current[activeIndex]?.focus();
-          }
+          if (!open) setOpenId(null);
         }}
+        // Radix owns focus on close, so the restore has to happen in its own hook —
+        // calling focus() from onOpenChange runs too early and Radix overwrites it.
+        onCloseFocus={() => rowRefs.current[activeIndex]?.focus()}
       />
     </div>
   );

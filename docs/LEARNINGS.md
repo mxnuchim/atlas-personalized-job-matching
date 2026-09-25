@@ -201,3 +201,67 @@ test also asserts it found at least 30 source files, so an empty walk can't pass
 
 **Rule.** Every guard gets deliberately tripped once, at the time it's written. An
 assertion you've only ever seen pass is decoration.
+
+---
+
+## 2026-09-25 09:35 — Radix restores dialog focus in its own hook, not yours
+
+**Problem.** Closing the match drawer with Escape left focus on `<body>`, which silently
+killed `j`/`k` navigation. The close handler explicitly refocused the originating row, and
+it made no difference.
+
+**Root cause.** `onOpenChange` fires *before* Radix runs its own focus restoration, so
+the manual `focus()` was immediately overwritten. And because the drawer is opened
+programmatically rather than from a `Dialog.Trigger`, Radix had no trigger to restore to
+and fell back to the body.
+
+**Fix.** `onCloseAutoFocus={(e) => { e.preventDefault(); onCloseFocus?.(); }}` on
+`Dialog.Content` — the hook Radix provides for exactly this.
+
+**Rule.** When a library owns focus, put focus work in the hook it gives you. A
+`focus()` call in an earlier callback is not "also fine"; it is dead code with a plausible
+shape.
+
+---
+
+## 2026-09-25 09:35 — `truncate` does nothing in a table without `table-fixed`
+
+**Problem.** The matches table overflowed its `overflow-hidden` container on a 375px
+viewport and was clipped. Column widths were declared and cells used `truncate`; neither
+had any effect.
+
+**Root cause.** The default `table-layout: auto` sizes columns to their content, so
+declared widths are treated as suggestions and a cell never gets the constrained width
+that `text-overflow: ellipsis` needs.
+
+**Rule.** A table with fixed column widths or truncating cells needs `table-fixed`.
+`w-[Npx]` plus `truncate` on an auto-layout table is a no-op that looks correct in the
+markup.
+
+---
+
+## 2026-09-25 09:35 — Size an SVG in viewBox units, not pixels
+
+**Problem.** The fit gauge took `box`/`stroke` as pixel values baked into `width`,
+`height` and inline styles. Making it smaller on mobile would have meant rendering two
+gauges and hiding one — two mounts, two animations, for one dial.
+
+**Fix.** Keep the geometry in viewBox units and let CSS set the rendered size
+(`size-12 sm:size-16`). The stroke scales with the box, so one instance covers every
+breakpoint.
+
+**Rule.** An SVG's `viewBox` is its coordinate system, not its size. Put the drawing in
+viewBox units and let CSS decide how big it renders — then responsive sizing is a class,
+not a second component.
+
+---
+
+## 2026-09-25 09:35 — The defects that matter are the ones green gates cannot see
+
+**Problem.** Lint, types, 69 tests and a clean production build all passed on a UI with
+broken focus restoration, truncated content, a clipped mobile table and an
+under-scaled hero number.
+
+**Rule.** A green pipeline says the code runs, not that the thing works. Any UI change
+gets looked at — at the smallest width, in both themes, and driven by keyboard — before
+it is called done. Budget for the visual pass finding real bugs, because it will.
