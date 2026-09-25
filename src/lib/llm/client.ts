@@ -60,6 +60,8 @@ export type GenerateStructuredOptions<T> = {
   maxOutputTokens?: number;
   /** Retries *after* the first attempt. Defaults to `LLM_MAX_RETRIES`. */
   maxRetries?: number;
+  /** Per-attempt wall clock. Defaults to `LLM_REQUEST_TIMEOUT_MS`. */
+  timeoutMs?: number;
   signal?: AbortSignal;
   /** Injected in tests to drive a mock model. Never set in application code. */
   languageModel?: LanguageModel;
@@ -76,6 +78,8 @@ export async function generateStructured<T>(
   const maxRetries = opts.maxRetries ?? LIMITS.maxRetries;
   const model = opts.languageModel ?? resolveModel(modelId);
 
+  const timeoutMs = opts.timeoutMs ?? LIMITS.requestTimeoutMs;
+
   const result = await withRetry(
     () =>
       generateObject({
@@ -86,7 +90,8 @@ export async function generateStructured<T>(
         maxOutputTokens: opts.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
         // Retrying is ours, not the SDK's — we classify which failures deserve it.
         maxRetries: 0,
-        abortSignal: opts.signal,
+        // Fresh per attempt: a timeout bounds one call, not the retry budget.
+        abortSignal: withTimeout(opts.signal, timeoutMs),
       }),
     { maxRetries, modelId, signal: opts.signal },
   );
@@ -95,6 +100,16 @@ export async function generateStructured<T>(
     data: result.object as T,
     usage: normalizeUsage(result.usage, modelId, PROVIDER),
   };
+}
+
+/**
+ * Bound one attempt without swallowing the caller's own cancellation. A timeout aborts
+ * with `TimeoutError`, a caller aborts with `AbortError` — `isRetryable` tells them
+ * apart, so a hung connection is retried and a deliberate cancel is not.
+ */
+function withTimeout(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
 /**
@@ -136,7 +151,9 @@ export function normalizeUsage(
  * the next attempt, so retrying it just burns time and money.
  */
 export function isRetryable(error: unknown): boolean {
+  // A deliberate cancel is final; a timeout is a stalled connection worth one more try.
   if (error instanceof DOMException && error.name === "AbortError") return false;
+  if (error instanceof DOMException && error.name === "TimeoutError") return true;
 
   // Truncation repeats deterministically under the same ceiling — retrying only
   // spends the tokens again.

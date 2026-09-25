@@ -169,8 +169,14 @@ describe("isRetryable", () => {
     expect(isRetryable(error)).toBe(true);
   });
 
-  it("does not retry an abort", () => {
+  it("does not retry a deliberate abort", () => {
     expect(isRetryable(new DOMException("aborted", "AbortError"))).toBe(false);
+  });
+
+  it("does retry a timeout — a stalled connection is worth another attempt", () => {
+    // Two calls once hung ~15 minutes before the socket gave up, which is why every
+    // attempt is now bounded. A timeout must stay distinguishable from a real cancel.
+    expect(isRetryable(new DOMException("timed out", "TimeoutError"))).toBe(true);
   });
 });
 
@@ -344,5 +350,64 @@ describe("truncation at the output ceiling", () => {
         languageModel: new MockLanguageModelV4({ doGenerate }),
       }),
     ).rejects.toThrow(/truncated at the token ceiling[\s\S]*maxOutputTokens/);
+  });
+});
+
+/**
+ * A model that never resolves and only settles on abort — the shape of a hung
+ * connection. It checks `aborted` before subscribing, exactly as a real `fetch` does:
+ * a signal that is already aborted fires no event, so a listener alone would hang.
+ */
+const hangingModel = () =>
+  new MockLanguageModelV4({
+    doGenerate: ({ abortSignal }) =>
+      new Promise((_resolve, reject) => {
+        if (abortSignal?.aborted) {
+          reject(abortSignal.reason);
+          return;
+        }
+        abortSignal?.addEventListener("abort", () => reject(abortSignal.reason), {
+          once: true,
+        });
+      }),
+  });
+
+describe("per-attempt timeout", () => {
+  it("aborts an attempt that outlives the timeout, and reports it", async () => {
+    const started = Date.now();
+    await expect(
+      generateStructured({
+        schema,
+        system: "s",
+        prompt: "p",
+        maxRetries: 0,
+        timeoutMs: 60,
+        languageModel: hangingModel(),
+      }),
+    ).rejects.toBeInstanceOf(LlmError);
+
+    // Bounded by the timeout, not left hanging on the never-resolving promise.
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it("leaves a caller's own abort in control", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    // An abort is final: it must not burn the retry budget or wait out the timeout.
+    const started = Date.now();
+    await expect(
+      generateStructured({
+        schema,
+        system: "s",
+        prompt: "p",
+        maxRetries: 3,
+        timeoutMs: 30_000,
+        signal: controller.signal,
+        languageModel: hangingModel(),
+      }),
+    ).rejects.toBeInstanceOf(LlmError);
+
+    expect(Date.now() - started).toBeLessThan(1000);
   });
 });

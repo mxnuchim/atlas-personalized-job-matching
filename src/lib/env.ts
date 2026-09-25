@@ -43,6 +43,11 @@ const envSchema = z.object({
   LLM_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(3),
   /** Retries *after* the first attempt, per call. */
   LLM_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  /**
+   * Per-call wall clock. Without one a hung provider connection stalls a whole run —
+   * observed in practice: two calls hung ~15 minutes before the socket gave up.
+   */
+  LLM_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(300_000).default(60_000),
 
   // M4 — Gmail sending
   GOOGLE_CLIENT_ID: z.string().optional(),

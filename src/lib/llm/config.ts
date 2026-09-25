@@ -32,6 +32,7 @@ export const PROVIDER: LlmProvider = env.LLM_PROVIDER;
 export const LIMITS = {
   maxConcurrency: env.LLM_MAX_CONCURRENCY,
   maxRetries: env.LLM_MAX_RETRIES,
+  requestTimeoutMs: env.LLM_REQUEST_TIMEOUT_MS,
 } as const;
 
 /**

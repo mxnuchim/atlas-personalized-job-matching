@@ -242,3 +242,32 @@ dark mode across table, cards and drawer; no horizontal overflow at 375px.
 `duration: 0`, but no emulation was available here — it is code-verified only.
 
 **Files.** `src/components/{fit-gauge,match-drawer,matches-table}.tsx`
+
+---
+
+## 2026-09-25 09:55 — End-to-end verification, and a timeout the run needed
+
+**Context.** Final M2 check: prove the pipeline works end to end and that both
+idempotency guarantees the PRD requires actually hold.
+
+**Action.** Ran the pipeline against the live database and compared before/after.
+
+**Result — both guarantees verified:**
+
+- **Ingest:** 89 postings seen, **0 inserted, 89 duplicates**. Re-ingestion is a no-op
+  against the `(source_id, external_id)` unique key.
+- **Scoring:** matches went 31 → 33, and the top match's `scored_at` was **byte-identical
+  before and after** — already-scored jobs are not re-scored. Prompt caching stayed
+  active (3,456 of 7,257 input tokens served from cache). 2 scored, 0 failed.
+
+**But the run took over fifteen minutes for two jobs.** The retries recovered, so the
+result was correct and the failure was invisible in the output — the calls had simply
+hung. Neither the AI SDK nor `fetch` imposes a wall clock, and retry logic only engages
+once a call *fails*.
+
+Every attempt now carries `AbortSignal.timeout(LLM_REQUEST_TIMEOUT_MS)` (default 60s),
+combined with any caller signal, fresh per attempt. A timeout rejects with
+`TimeoutError` and is retried; a caller's abort rejects with `AbortError` and is final.
+
+**Files.** `src/lib/llm/{client,config}.ts`, `src/lib/env.ts`, `.env.example`,
+`src/lib/llm/client.test.ts`

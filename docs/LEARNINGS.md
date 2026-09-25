@@ -265,3 +265,42 @@ under-scaled hero number.
 **Rule.** A green pipeline says the code runs, not that the thing works. Any UI change
 gets looked at — at the smallest width, in both themes, and driven by keyboard — before
 it is called done. Budget for the visual pass finding real bugs, because it will.
+
+---
+
+## 2026-09-25 09:55 — A hung provider connection has no timeout unless you add one
+
+**Problem.** A two-job scoring run took over fifteen minutes. The jobs eventually
+scored — the retry logic worked — but the first attempts simply hung until the socket
+gave up on its own.
+
+**Root cause.** Neither the AI SDK nor `fetch` imposes a wall clock. Retries and
+backoff only help once a call *fails*; a call that never returns is invisible to them.
+The PRD budgets ~2 minutes for a whole run, and a single stalled connection can exceed
+that on its own.
+
+**Fix.** Every attempt now carries `AbortSignal.timeout(LLM_REQUEST_TIMEOUT_MS)`
+(default 60s), combined with any caller signal via `AbortSignal.any`. Fresh per
+attempt, so the timeout bounds one call rather than the whole retry budget.
+
+The two abort kinds must stay distinguishable: `AbortSignal.timeout()` rejects with
+`TimeoutError` and is retryable (a stalled connection deserves another go), while a
+caller's `AbortController` rejects with `AbortError` and is final.
+
+**Rule.** Retry and backoff protect against calls that fail. Only a timeout protects
+against calls that never return — every network call needs both.
+
+---
+
+## 2026-09-25 09:57 — An abort mock must check `aborted` before it subscribes
+
+**Problem.** A test that aborted the caller's controller hung until the runner killed
+it, making a correct timeout implementation look broken.
+
+**Root cause.** The mock only did `addEventListener("abort", …)`. A signal that was
+*already* aborted fires no further event, so the listener never ran and the promise
+never settled. Real `fetch` checks `signal.aborted` up front.
+
+**Rule.** Any fake that honours an `AbortSignal` must reject immediately when
+`signal.aborted` is already true, then subscribe. Otherwise it models a signal that can
+only be aborted late, and tests the wrong thing.
