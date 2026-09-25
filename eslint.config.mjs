@@ -10,7 +10,7 @@ const eslintConfig = defineConfig([
   // boundary.test.ts covers the other half of the rule — bare API-key references.
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/lib/llm/**"],
+    ignores: ["src/lib/llm/**", "src/lib/gmail/**"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -20,6 +20,11 @@ const eslintConfig = defineConfig([
               group: ["ai", "@ai-sdk/*", "@anthropic-ai/*", "openai", "@google/*"],
               message:
                 "Only src/lib/llm may import an LLM provider. Use generateStructured from @/lib/llm instead.",
+            },
+            {
+              group: ["googleapis", "google-auth-library"],
+              message:
+                "Only src/lib/gmail may import the Google SDK. Use sendEmail from @/lib/gmail instead.",
             },
           ],
         },

@@ -13,17 +13,43 @@ import { describe, expect, it } from "vitest";
  */
 
 const SRC = join(process.cwd(), "src");
-const ALLOWED_DIR = join("lib", "llm");
 
-const VIOLATIONS: { label: string; pattern: RegExp }[] = [
-  { label: 'imports the AI SDK ("ai")', pattern: /from\s+["']ai["']|require\(["']ai["']\)/ },
-  { label: "imports a provider package (@ai-sdk/*)", pattern: /["']@ai-sdk\// },
+/** Each vendor boundary, and the one directory allowed to cross it. */
+const BOUNDARIES: { dir: string; violations: { label: string; pattern: RegExp }[] }[] = [
   {
-    label: "imports a vendor SDK directly",
-    pattern: /["']@anthropic-ai\/|["']openai["']|["']@google\//,
+    dir: join("lib", "llm"),
+    violations: [
+      {
+        label: 'imports the AI SDK ("ai")',
+        pattern: /(?:from|require\()\s*["']ai["']/,
+      },
+      {
+        label: "imports a provider package (@ai-sdk/*)",
+        pattern: /(?:from|require\()\s*["']@ai-sdk\//,
+      },
+      {
+        label: "imports a vendor SDK directly",
+        pattern: /(?:from|require\()\s*["'](?:@anthropic-ai\/|openai|@google\/)/,
+      },
+    ],
   },
-  { label: "references an API key", pattern: /[A-Z0-9_]*_API_KEY\b/ },
+  {
+    dir: join("lib", "gmail"),
+    violations: [
+      {
+        label: "imports the Google SDK",
+        pattern: /(?:from|require\()\s*["'](?:googleapis|google-auth-library)["']/,
+      },
+    ],
+  },
 ];
+
+/** Secrets belong to whichever layer owns them; env.ts only declares the names. */
+const SECRET_PATTERN = {
+  label: "references a secret",
+  pattern: /[A-Z0-9_]*_API_KEY\b|GOOGLE_CLIENT_SECRET|GMAIL_OAUTH_REFRESH_TOKEN/,
+};
+const SECRET_DIRS = [join("lib", "llm"), join("lib", "gmail")];
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -33,19 +59,35 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-describe("LLM provider boundary", () => {
-  it("keeps every provider import and API key inside src/lib/llm", () => {
+describe("vendor boundaries", () => {
+  it.each(BOUNDARIES)("keeps $dir's vendor imports inside it", ({ dir, violations }) => {
     const offenders: string[] = [];
 
     for (const file of sourceFiles(SRC)) {
       const rel = relative(SRC, file);
-      if (rel.startsWith(ALLOWED_DIR + sep)) continue;
-      // env.ts declares the key names for validation; it never reaches a provider.
-      if (rel === join("lib", "env.ts")) continue;
+      if (rel.startsWith(dir + sep)) continue;
 
       const contents = readFileSync(file, "utf8");
-      for (const { label, pattern } of VIOLATIONS) {
+      for (const { label, pattern } of violations) {
         if (pattern.test(contents)) offenders.push(`${rel} — ${label}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps every secret inside the layer that owns it", () => {
+    // This is the half a linter cannot see: a bare key reference is not an import.
+    const offenders: string[] = [];
+
+    for (const file of sourceFiles(SRC)) {
+      const rel = relative(SRC, file);
+      if (SECRET_DIRS.some((dir) => rel.startsWith(dir + sep))) continue;
+      // env.ts declares the names for validation; it never reaches a vendor.
+      if (rel === join("lib", "env.ts")) continue;
+
+      if (SECRET_PATTERN.pattern.test(readFileSync(file, "utf8"))) {
+        offenders.push(`${rel} — ${SECRET_PATTERN.label}`);
       }
     }
 

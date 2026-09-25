@@ -391,3 +391,51 @@ then docs via inline python plus a commit — along with src via `sed`, a pretti
 failures.
 
 **Files.** `.claude/settings.json`
+
+---
+
+## 2026-09-25 11:10 — M4a: the §11 guardrails, message construction, and the Gmail layer
+
+**Context.** M4 is Gmail sending. Recipients are entered by hand for now — a posting
+never carries a human's address, and guessing one costs deliverability (§11 caps bounce
+at 2%). Address discovery is explicitly out of scope.
+
+**Action.** Built the parts that decide *whether* to send before anything that can
+send, so the rules are testable without a mail server.
+
+- **`sending/warmup.ts`** — the §11 ramp. Derived from the first recorded send rather
+  than a configured start date, so there is no "warming up" flag to forget to clear and
+  a dormant identity is never falsely treated as warm. Caps at 5/day rising to the
+  configured cap over 21 days, and never raises a deliberately low cap.
+- **`sending/guardrails.ts`** — every §11 rule as one pure decision: human approval,
+  no double-send, recipient present and valid, a sending identity that is **not** the
+  primary address, the daily cap, the warm-up ramp, bounce < 2%, complaints < 0.1%, and
+  reply suppression. Auto-send is advisory and can never make a non-approved draft
+  sendable. An unmeasured rate reports `unknown` and does **not** block — a gap in
+  observability is not evidence of a problem, but rendering it as a reassuring 0% would
+  be a lie.
+- **`sending/message.ts`** — RFC 2822 construction, pure. Header values are stripped of
+  CR/LF and RFC 2047-encoded. This matters because the subject comes from a model: an
+  injected newline would let generated text forge a `Bcc`.
+- **`lib/gmail/`** — config, typed errors, and `sendEmail`. It does not decide whether
+  to send; it delivers what the guardrails cleared. `GMAIL_DRY_RUN` builds and validates
+  the whole message without handing it to Gmail.
+- **`db/queries/outreach.ts`** — send stats, reply lookup, funnel counts, and the
+  tracker's rows. `bounces`/`complaints` return `null`, not `0`, until detection lands.
+
+**Boundary.** `lib/gmail` now holds the same hard rule as `lib/llm`: nothing else may
+import `googleapis`/`google-auth-library` or read a Google secret. ESLint and
+`boundary.test.ts` both enforce it, and both were verified by planting a file that
+imports `googleapis` *and* `ai` *and* references `GMAIL_OAUTH_REFRESH_TOKEN` — three
+violations, all caught, green again on removal.
+
+Tightening the boundary patterns to be import-shaped was necessary: `env.ts` contains
+the literal `"openai"` as a config enum value, and a vendor's name in a string is not a
+dependency.
+
+**Result.** 152 tests green; lint, typecheck and build clean. Nothing can send yet —
+the action that calls `sendEmail` lands next.
+
+**Files.** `src/lib/sending/{warmup,guardrails,message}.ts`, `src/lib/gmail/*`,
+`src/db/queries/outreach.ts`, `src/db/queries/drafts.ts`, `src/lib/env.ts`,
+`eslint.config.mjs`, `src/lib/llm/boundary.test.ts`, `.env.example`

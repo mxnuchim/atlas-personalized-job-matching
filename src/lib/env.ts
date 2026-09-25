@@ -61,6 +61,11 @@ const envSchema = z.object({
   SENDING_ADDRESS: z.email().optional(),
   DAILY_SEND_CAP: z.coerce.number().int().positive().default(30),
   AUTO_SEND: boolFromString, // defaults off, ships off (PRD §11)
+  /**
+   * Build and validate the message, run every guardrail, but stop short of handing it
+   * to Gmail. For verifying the chain end to end without mailing a stranger.
+   */
+  GMAIL_DRY_RUN: boolFromString,
 
   // Ops
   TZ: z.string().default("UTC"),

@@ -147,6 +147,32 @@ export async function saveDraftEdit(id: string, editedBody: string): Promise<Dra
   return row ?? null;
 }
 
+/**
+ * Set or clear the recipient. Manual entry for now — a posting never carries a human's
+ * address, and guessing one costs deliverability (PRD §11).
+ */
+export async function setDraftRecipient(
+  id: string,
+  recipient: string | null,
+): Promise<Draft | null> {
+  const [row] = await db.update(drafts).set({ recipient }).where(eq(drafts.id, id)).returning();
+  return row ?? null;
+}
+
+/** Mark a draft as delivered. Terminal — `canDecide`/`canEdit` refuse it afterwards. */
+export async function markDraftSent(id: string): Promise<Draft | null> {
+  const [row] = await db
+    .update(drafts)
+    .set({ status: "sent", decidedAt: new Date() })
+    .where(eq(drafts.id, id))
+    .returning();
+  return row ?? null;
+}
+
+export async function markDraftFailed(id: string): Promise<void> {
+  await db.update(drafts).set({ status: "failed" }).where(eq(drafts.id, id));
+}
+
 export async function getDraft(id: string): Promise<Draft | null> {
   const [row] = await db.select().from(drafts).where(eq(drafts.id, id)).limit(1);
   return row ?? null;
