@@ -322,6 +322,31 @@ without sending anything.
 
 ---
 
+## 9d. Ownership
+
+Atlas is multi-user. One person uses it today; the rules below are what make the second
+a row in `users` rather than a rewrite.
+
+- **Everything keys on `profile.id`, never `profile.version`.** A version number is
+  unique only within a user — two people both start at 1 — so `(job_id, version)`
+  collides and one person's score overwrites the other's. The profile *row* identifies
+  an owner; `strengths`, `matches` and, through matches, `drafts` and `outreach`
+  inherit it transitively. No table carries a duplicated `user_id` that can drift.
+- **An owner parameter is required, never optional.** `getCurrentProfile(userId)`,
+  `listDailyQueue(profileId, …)`, `getMatchCounts(profileId)`. An optional owner is how
+  "whose data is this?" becomes a question nobody asks — the first caller that omits it
+  silently reads whichever profile sorts first, and that bug is invisible until there
+  are two users.
+- **Pages read through `requireProfile()`**, which pairs the session with its profile.
+  A profile of `null` is a real state — a new account has none until it is seeded — so
+  screens render an empty state rather than throwing.
+- **The corpus is shared; the opinions are not.** Ingest runs once for everyone, and
+  its relevance gate keeps a posting relevant to *any* profile. Scoring, drafting and
+  the daily email are per user, each email addressed to its own recipient. A shared
+  summary would tell you about roles you cannot see.
+
+---
+
 ## 10. Component inventory
 
 | Component | Kind | Notes |

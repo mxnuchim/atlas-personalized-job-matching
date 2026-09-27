@@ -23,12 +23,12 @@ export type ActionResult = { ok: true; message?: string } | { ok: false; error: 
 
 /** Draft this role now, regardless of tier. */
 export async function draftMatchAction(input: unknown): Promise<ActionResult> {
-  await requireSession();
+  const session = await requireSession();
 
   const parsed = matchSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "That match reference is not valid." };
 
-  const summary = await runDraft({ matchId: parsed.data.matchId });
+  const summary = await runDraft({ userId: session.user.id, matchId: parsed.data.matchId });
 
   if (summary.skipped) return { ok: false, error: summary.skipped };
   if (summary.drafted === 0) {

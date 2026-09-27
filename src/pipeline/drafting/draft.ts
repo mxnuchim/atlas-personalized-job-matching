@@ -57,13 +57,19 @@ function empty(): DraftSummary {
  * match with a draft is never re-drafted, so a re-run only fills gaps.
  */
 export async function runDraft({
+  userId,
   tiers = DEFAULT_TIERS,
   limit = DEFAULT_LIMIT,
   matchId,
-}: { tiers?: FitTier[]; limit?: number; matchId?: string } = {}): Promise<DraftSummary> {
+}: {
+  userId: string;
+  tiers?: FitTier[];
+  limit?: number;
+  matchId?: string;
+}): Promise<DraftSummary> {
   const logger = log("draft");
 
-  const profile = await getCurrentProfile();
+  const profile = await getCurrentProfile(userId);
   if (!profile) return { ...empty(), skipped: "No profile seeded — run db:seed:profile" };
 
   // A single match drafts on demand, ignoring the tier gate: the scheduled run only
@@ -80,7 +86,7 @@ export async function runDraft({
 
   // One fetch for the whole queue rather than a round trip per draft.
   const queued = new Set(queue.map((q) => q.matchId));
-  const allMatches = await listMatchRows();
+  const allMatches = await listMatchRows(profile.id);
   const targets = allMatches.filter((m) => queued.has(m.id));
 
   // An email signed "the candidate" is worse than no email, so this refuses rather

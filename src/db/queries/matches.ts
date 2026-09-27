@@ -18,19 +18,19 @@ import type { FitTier } from "@/lib/scoring";
 export type MatchWithJob = Match & { job: Job };
 
 /** Scored matches with their job, best fit first (PRD §9). */
-export async function listMatches(profileVersion?: number): Promise<MatchWithJob[]> {
+export async function listMatches(profileId: string): Promise<MatchWithJob[]> {
   const rows = await db
     .select()
     .from(matches)
     .innerJoin(jobs, eq(matches.jobId, jobs.id))
-    .where(profileVersion ? eq(matches.profileVersion, profileVersion) : undefined)
+    .where(eq(matches.profileId, profileId))
     .orderBy(desc(matches.overall), desc(matches.scoredAt));
 
   return rows.map((row) => ({ ...row.matches, job: row.jobs }));
 }
 
 /** Jobs with no match yet for this profile version — the scorer's work queue. */
-export async function getUnscoredJobs(profileVersion: number, limit: number): Promise<Job[]> {
+export async function getUnscoredJobs(profileId: string, limit: number): Promise<Job[]> {
   return db
     .select()
     .from(jobs)
@@ -42,7 +42,7 @@ export async function getUnscoredJobs(profileVersion: number, limit: number): Pr
           db
             .select({ one: sql`1` })
             .from(matches)
-            .where(and(eq(matches.jobId, jobs.id), eq(matches.profileVersion, profileVersion))),
+            .where(and(eq(matches.jobId, jobs.id), eq(matches.profileId, profileId))),
         ),
       ),
     )
@@ -108,12 +108,12 @@ const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
 });
 
 /** Scored matches shaped for the UI, best fit first. */
-export async function listMatchRows(limit = 200, profileVersion?: number): Promise<MatchRow[]> {
+export async function listMatchRows(profileId: string, limit = 200): Promise<MatchRow[]> {
   const rows = await db
     .select()
     .from(matches)
     .innerJoin(jobs, eq(matches.jobId, jobs.id))
-    .where(profileVersion ? eq(matches.profileVersion, profileVersion) : undefined)
+    .where(eq(matches.profileId, profileId))
     .orderBy(desc(matches.overall), desc(matches.scoredAt))
     .limit(limit);
 
@@ -165,7 +165,11 @@ function toMatchRow(m: Match, j: Job, now: Date): MatchRow {
  * "Not acted on" means no outreach row, or one still at `drafted`. Anything sent,
  * closed or further along has been dealt with and does not come back.
  */
-export async function listDailyQueue(limit: number, maxPerCompany: number): Promise<MatchRow[]> {
+export async function listDailyQueue(
+  profileId: string,
+  limit: number,
+  maxPerCompany: number,
+): Promise<MatchRow[]> {
   // Fetch a pool rather than exactly `limit`: the per-company cap can only choose from
   // what it is given, so asking for 20 and then capping would return fewer than 20
   // whenever one employer dominates the top. Bounded, so a pathological corpus
@@ -177,7 +181,13 @@ export async function listDailyQueue(limit: number, maxPerCompany: number): Prom
     .from(matches)
     .innerJoin(jobs, eq(matches.jobId, jobs.id))
     .leftJoin(outreach, eq(outreach.matchId, matches.id))
-    .where(and(isNull(jobs.closedAt), or(isNull(outreach.id), eq(outreach.status, "drafted"))))
+    .where(
+      and(
+        eq(matches.profileId, profileId),
+        isNull(jobs.closedAt),
+        or(isNull(outreach.id), eq(outreach.status, "drafted")),
+      ),
+    )
     .orderBy(desc(matches.overall), desc(matches.scoredAt))
     .limit(pool);
 
@@ -187,18 +197,24 @@ export async function listDailyQueue(limit: number, maxPerCompany: number): Prom
 }
 
 /** How many matches are waiting, so the queue can say what it is holding back. */
-export async function countDailyQueue(): Promise<number> {
+export async function countDailyQueue(profileId: string): Promise<number> {
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(matches)
     .innerJoin(jobs, eq(matches.jobId, jobs.id))
     .leftJoin(outreach, eq(outreach.matchId, matches.id))
-    .where(and(isNull(jobs.closedAt), or(isNull(outreach.id), eq(outreach.status, "drafted"))));
+    .where(
+      and(
+        eq(matches.profileId, profileId),
+        isNull(jobs.closedAt),
+        or(isNull(outreach.id), eq(outreach.status, "drafted")),
+      ),
+    );
   return row?.count ?? 0;
 }
 
 /** Counts for the Today strip, done in SQL rather than by loading every row. */
-export async function getMatchCounts(profileVersion?: number) {
+export async function getMatchCounts(profileId: string) {
   const [row] = await db
     .select({
       total: sql<number>`count(*)::int`,
@@ -207,7 +223,7 @@ export async function getMatchCounts(profileVersion?: number) {
       scoredToday: sql<number>`count(*) filter (where ${matches.scoredAt} >= date_trunc('day', now()))::int`,
     })
     .from(matches)
-    .where(profileVersion ? eq(matches.profileVersion, profileVersion) : undefined);
+    .where(eq(matches.profileId, profileId));
 
   return row ?? { total: 0, strong: 0, possible: 0, scoredToday: 0 };
 }

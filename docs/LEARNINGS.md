@@ -989,3 +989,28 @@ rejected — blank-tolerance must not become "accept anything".
 no way to express "absent" once you have added the row, so `""` is the real shape of
 "unset" everywhere except a local `.env` file. Any schema with defaults needs to
 normalise it before parsing, or the defaults only work on the machine you wrote them on.
+
+---
+
+## 2026-09-27 19:00 — Dry-run a migration in a transaction you roll back
+
+**Problem.** A hand-written migration failed on its fifth statement: `cannot drop
+constraint profile_version_unique on table profile because other objects depend on it`.
+
+**Root cause.** Two foreign keys referenced `profile.version`, and Postgres will not
+drop a unique constraint while an FK depends on the index backing it. The dependency is
+invisible from the schema files — it exists only in the database.
+
+**Fix.** Reorder: drop both FKs, then the constraint. Found by piping the SQL through
+`psql` wrapped in `BEGIN; … ROLLBACK;` with `ON_ERROR_STOP=1`, which names the failing
+statement and changes nothing. Adding a `SELECT count(*)` before the rollback also
+proved the backfill preserved all 293 matches *before* anything was committed.
+
+**Rule.** Run a migration inside a rolled-back transaction before running it for real.
+It costs one command, it reports the first failure precisely, and it lets you assert on
+the post-migration data while still being free to walk away. For a migration that
+moves data rather than just shape, this is not optional.
+
+And when a snapshot is hand-written, prove it: `drizzle-kit generate` afterwards must
+say "no schema changes". Anything else means the snapshot and the schema disagree, and
+every later migration inherits the error.

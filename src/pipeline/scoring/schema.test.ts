@@ -24,7 +24,7 @@ describe("assessmentToMatch", () => {
   it("derives the tier from overall and drops unknown strength keys", () => {
     const row = assessmentToMatch({
       jobId: "job-1",
-      profileVersion: 1,
+      profileId: "11111111-1111-4111-8111-111111111111",
       assessment: assessmentSchema.parse(assessment),
       model: "claude-sonnet-4-5",
       tokensIn: 1200,
@@ -42,7 +42,7 @@ describe("assessmentToMatch", () => {
   it("maps a mid score to the possible tier", () => {
     const row = assessmentToMatch({
       jobId: "job-2",
-      profileVersion: 1,
+      profileId: "11111111-1111-4111-8111-111111111111",
       assessment: assessmentSchema.parse({ ...assessment, overall: 72 }),
       model: "m",
       tokensIn: null,

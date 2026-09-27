@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { ReviewQueue } from "@/components/review-queue";
 import { StatStrip } from "@/components/stat-strip";
 import { countDraftsByStatus, listDrafts } from "@/db/queries/drafts";
-import { getCurrentProfile } from "@/db/queries/profile";
+import { requireProfile } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Review",
@@ -16,11 +16,8 @@ export const dynamic = "force-dynamic";
 
 /** Server-rendered shell; the queue is a client island because it edits and decides. */
 export default async function ReviewPage() {
-  const [drafts, counts, profile] = await Promise.all([
-    listDrafts("awaiting"),
-    countDraftsByStatus(),
-    getCurrentProfile(),
-  ]);
+  const { profile } = await requireProfile();
+  const [drafts, counts] = await Promise.all([listDrafts("awaiting"), countDraftsByStatus()]);
 
   const strengthLabels = Object.fromEntries(
     (profile?.strengths ?? []).map((s) => [s.key, s.label]),

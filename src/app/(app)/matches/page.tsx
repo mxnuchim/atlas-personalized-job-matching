@@ -4,8 +4,8 @@ import { TargetIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { MatchesTable } from "@/components/matches-table";
 import { PageHeader } from "@/components/page-header";
-import { getCurrentProfile } from "@/db/queries/profile";
 import { listMatchRows } from "@/db/queries/matches";
+import { requireProfile } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Matches",
@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
  * keyboard-navigable and holds sort/filter/selection state (PRD §6).
  */
 export default async function MatchesPage() {
-  const [matches, profile] = await Promise.all([listMatchRows(), getCurrentProfile()]);
+  const { profile } = await requireProfile();
+  const matches = profile ? await listMatchRows(profile.id) : [];
 
   const strengthLabels = Object.fromEntries(
     (profile?.strengths ?? []).map((s) => [s.key, s.label]),

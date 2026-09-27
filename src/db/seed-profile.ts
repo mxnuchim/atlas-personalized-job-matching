@@ -3,12 +3,12 @@ import "./_bootstrap";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { z } from "zod";
 
-import { evidence, profile, strengths } from "./schema";
+import { evidence, profile, strengths, users } from "./schema";
 
 /**
  * Seeds `profile` / `strengths` / `evidence` from the ```json block in the
@@ -88,8 +88,22 @@ async function main() {
   const sql = postgres(databaseUrl, { max: 1 });
   const db = drizzle(sql, { casing: "snake_case" });
 
+  // The profile belongs to someone. Seeding picks the user by AUTH_USER_EMAIL, the
+  // same address `db:seed` created, rather than guessing at "the only user" — which
+  // stops being true the moment a second person signs up.
+  const ownerEmail = process.env.AUTH_USER_EMAIL?.toLowerCase();
+  if (!ownerEmail) {
+    throw new Error("Set AUTH_USER_EMAIL — it names which user this profile belongs to.");
+  }
+
+  const [owner] = await db.select({ id: users.id }).from(users).where(eq(users.email, ownerEmail));
+  if (!owner) {
+    throw new Error(`No user with email ${ownerEmail}. Run npm run db:seed first.`);
+  }
+
   await db.transaction(async (tx) => {
     const profileValues = {
+      userId: owner.id,
       version: p.version,
       headline: p.headline,
       name: p.name ?? null,
@@ -105,16 +119,22 @@ async function main() {
     await tx
       .insert(profile)
       .values(profileValues)
-      .onConflictDoUpdate({ target: profile.version, set: profileValues });
+      .onConflictDoUpdate({ target: [profile.userId, profile.version], set: profileValues });
+
+    const [saved] = await tx
+      .select({ id: profile.id })
+      .from(profile)
+      .where(and(eq(profile.userId, owner.id), eq(profile.version, p.version)))
+      .limit(1);
 
     // Replace this version's strengths (cascades to their evidence), then reinsert.
-    await tx.delete(strengths).where(eq(strengths.profileVersion, p.version));
+    await tx.delete(strengths).where(eq(strengths.profileId, saved.id));
 
     const insertedStrengths = await tx
       .insert(strengths)
       .values(
         data.strengths.map((s) => ({
-          profileVersion: p.version,
+          profileId: saved.id,
           key: s.key,
           label: s.label,
           kind: s.kind,

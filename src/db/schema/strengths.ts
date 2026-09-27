@@ -1,4 +1,4 @@
-import { integer, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { createdAt, id } from "./columns";
 import { strengthKind } from "./enums";
@@ -12,9 +12,11 @@ export const strengths = pgTable(
   "strengths",
   {
     id: id(),
-    profileVersion: integer()
+    // Keyed on the profile row, not its version number: a version is only unique
+    // within a user, so `version` alone cannot identify whose strengths these are.
+    profileId: uuid()
       .notNull()
-      .references(() => profile.version, { onDelete: "cascade" }),
+      .references(() => profile.id, { onDelete: "cascade" }),
     key: text().notNull(),
     label: text().notNull(),
     kind: strengthKind().notNull(),
@@ -22,7 +24,7 @@ export const strengths = pgTable(
     summary: text(),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("strengths_version_key_uq").on(t.profileVersion, t.key)],
+  (t) => [uniqueIndex("strengths_profile_key_uq").on(t.profileId, t.key)],
 );
 
 export type Strength = typeof strengths.$inferSelect;

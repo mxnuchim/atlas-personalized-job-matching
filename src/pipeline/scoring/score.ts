@@ -60,15 +60,24 @@ function emptySummary(): ScoreSummary {
  *
  * The provider is whatever `@/lib/llm` resolves from env; nothing here knows or cares.
  */
-export async function runScore({ limit = DEFAULT_LIMIT } = {}): Promise<ScoreSummary> {
+export async function runScore({
+  userId,
+  limit = DEFAULT_LIMIT,
+}: {
+  userId: string;
+  limit?: number;
+}): Promise<ScoreSummary> {
   const logger = log("score");
 
-  const profile = await getCurrentProfile();
+  // Scoring is per profile, not per job: the same posting gets a different verdict for
+  // each person, so the owner has to be explicit rather than "whichever profile sorts
+  // first".
+  const profile = await getCurrentProfile(userId);
   if (!profile) {
     return { ...emptySummary(), skipped: "No profile seeded — run db:seed:profile" };
   }
 
-  const queue = await getUnscoredJobs(profile.version, limit);
+  const queue = await getUnscoredJobs(profile.id, limit);
   if (queue.length === 0) {
     return emptySummary();
   }
@@ -88,7 +97,7 @@ export async function runScore({ limit = DEFAULT_LIMIT } = {}): Promise<ScoreSum
         job,
         schema,
         system,
-        profileVersion: profile.version,
+        profileId: profile.id,
         validStrengthKeys,
       });
       return { ok: true as const, usage: result.usage, tier: result.tier };
@@ -139,10 +148,10 @@ async function scoreJob(params: {
   job: Job;
   schema: ReturnType<typeof buildAssessmentSchema>;
   system: string;
-  profileVersion: number;
+  profileId: string;
   validStrengthKeys: Set<string>;
 }) {
-  const { job, schema, system, profileVersion, validStrengthKeys } = params;
+  const { job, schema, system, profileId, validStrengthKeys } = params;
 
   const { data: assessment, usage } = await generateStructured({
     schema,
@@ -153,7 +162,7 @@ async function scoreJob(params: {
 
   const row = assessmentToMatch({
     jobId: job.id,
-    profileVersion,
+    profileId,
     assessment,
     model: usage.model,
     tokensIn: usage.inputTokens,
@@ -165,7 +174,7 @@ async function scoreJob(params: {
     .insert(matches)
     .values(row)
     .onConflictDoUpdate({
-      target: [matches.jobId, matches.profileVersion],
+      target: [matches.jobId, matches.profileId],
       set: {
         overall: row.overall,
         tier: row.tier,

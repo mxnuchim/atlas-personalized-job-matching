@@ -19,7 +19,12 @@ const logger = log("notify");
 /** Enough time to matter, short enough that a dead provider cannot stall a run. */
 const TIMEOUT_MS = 10_000;
 
-export type RunNotification = DailyEmailInput;
+/**
+ * The recipient travels with the notification rather than coming from env: each user
+ * gets their own queue, so a single configured address would send one person's roles
+ * to someone else.
+ */
+export type RunNotification = DailyEmailInput & { to?: string };
 
 /**
  * Never throws: a failed notification must not fail a run that otherwise did its work
@@ -27,7 +32,11 @@ export type RunNotification = DailyEmailInput;
  */
 export async function notifyRun(run: RunNotification): Promise<{ sent: boolean; reason?: string }> {
   if (!env.RESEND_API_KEY) return { sent: false, reason: "RESEND_API_KEY not set" };
-  if (!env.NOTIFY_EMAIL_TO) return { sent: false, reason: "NOTIFY_EMAIL_TO not set" };
+
+  // `NOTIFY_EMAIL_TO` remains the single-user fallback, so an existing deployment keeps
+  // working without knowing about per-user delivery.
+  const to = run.to ?? env.NOTIFY_EMAIL_TO;
+  if (!to) return { sent: false, reason: "no recipient (set NOTIFY_EMAIL_TO)" };
 
   const { subject, html, text } = renderDailyEmail(run);
 
@@ -40,7 +49,7 @@ export async function notifyRun(run: RunNotification): Promise<{ sent: boolean; 
       },
       body: JSON.stringify({
         from: env.NOTIFY_EMAIL_FROM,
-        to: [env.NOTIFY_EMAIL_TO],
+        to: [to],
         subject,
         html,
         text,
@@ -57,7 +66,7 @@ export async function notifyRun(run: RunNotification): Promise<{ sent: boolean; 
       return { sent: false, reason };
     }
 
-    logger.info({ to: env.NOTIFY_EMAIL_TO, queued: run.queued }, "daily email sent");
+    logger.info({ to, queued: run.queued }, "daily email sent");
     return { sent: true };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);

@@ -2,7 +2,7 @@ import "server-only";
 
 import { db } from "@/db";
 import { getSourceExternalIds, markJobsClosed, reopenJobs } from "@/db/queries/jobs";
-import { getCurrentProfile } from "@/db/queries/profile";
+import { getCurrentProfile, listProfileOwners } from "@/db/queries/profile";
 import { getEnabledSources } from "@/db/queries/sources";
 import { jobs, type NewJob, type Source } from "@/db/schema";
 import { isStale } from "@/lib/age";
@@ -57,7 +57,7 @@ export type IngestSummary = {
  */
 export async function ingestSource(
   source: Source,
-  criteria: RelevanceCriteria | null,
+  criteria: RelevanceCriteria[],
 ): Promise<IngestResult> {
   const logger = log("ingest");
   const empty = {
@@ -108,9 +108,16 @@ export async function ingestSource(
   // boards is thousands of postings, and scoring is one LLM call each — filtering here
   // keeps the corpus, the queue and the bill proportionate to what is actually worth
   // reading. A run with no profile yet filters nothing rather than dropping everything.
-  const relevant = criteria
-    ? fresh.filter((job) => isRelevant({ title: job.title, location: job.location }, criteria).keep)
-    : fresh;
+  // The job corpus is shared between users, so a posting survives if it is relevant
+  // to *any* profile — filtering to one person's criteria would quietly hide roles
+  // from everyone else. No profiles yet means no filtering, rather than dropping
+  // everything.
+  const relevant =
+    criteria.length === 0
+      ? fresh
+      : fresh.filter((job) =>
+          criteria.some((c) => isRelevant({ title: job.title, location: job.location }, c).keep),
+        );
   const filtered = fresh.length - relevant.length;
 
   // One role advertised in many cities is many postings with many ids. Collapse them
@@ -160,11 +167,14 @@ export async function runIngest(): Promise<IngestSummary> {
   // Built once per run, not per source: the criteria come from the profile, which does
   // not change mid-run. No profile yet means no filtering — better to over-collect on
   // a first run than to silently discard every posting.
-  const profile = await getCurrentProfile();
-  const criteria = profile
-    ? buildCriteria({ targetRoles: profile.targetRoles, locations: profile.locations })
-    : null;
-  if (!criteria) {
+  const owners = await listProfileOwners();
+  const profiles = (await Promise.all(owners.map((o) => getCurrentProfile(o.userId)))).filter(
+    (p) => p !== null,
+  );
+  const criteria = profiles.map((p) =>
+    buildCriteria({ targetRoles: p.targetRoles, locations: p.locations }),
+  );
+  if (criteria.length === 0) {
     logger.warn("no profile yet — ingesting without the relevance gate");
   }
 

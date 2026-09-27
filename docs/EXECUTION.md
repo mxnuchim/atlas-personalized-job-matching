@@ -1342,3 +1342,91 @@ user-scoped today: `users` exists but no other table references it, and
 the work, not the signup form — see the next entry when it happens.
 
 **Files.** `src/lib/env.ts`, `src/lib/env.test.ts`
+
+---
+
+## 2026-09-27 18:55 — Scoping everything to a user
+
+**Context.** A second person wants to use Atlas, with an avatar picker rather than one
+account seeded from env. The signup form was never the hard part: `users` existed and
+**no other table referenced it**. Nine tables, zero ownership.
+
+**The design.** Everything keys on `profile.id`, not on `profile.version`.
+
+Version numbers cannot identify an owner — two people both start at version 1, so
+`(job_id, profile_version)` would collide and one person's score would overwrite the
+other's. Keying on the profile *row* scopes a match to its owner transitively, with no
+denormalised `user_id` that can drift from the profile it was copied from. Drafts and
+outreach hang off matches, so they inherit ownership for free.
+
+- `profile` gains `user_id`; `version` is unique **per user**, not globally.
+- `strengths.profile_id` and `matches.profile_id` replace `profile_version`.
+- `users` gains `image` for the picker.
+
+**Every read takes a required owner.** `getCurrentProfile(userId)`,
+`listDailyQueue(profileId, …)`, `getUnscoredJobs(profileId, …)`,
+`getMatchCounts(profileId)`, `listMatchRows(profileId, …)`. Deliberately not optional:
+an optional owner is how "whose data is this?" becomes a question nobody asks, and the
+first caller that forgets silently reads whichever profile sorts first. Pages go
+through `requireProfile()`, which pairs the session with its profile.
+
+**The pipeline is already multi-user.** Ingest runs once — the corpus is shared, and
+the relevance gate keeps anything relevant to *any* profile, so one person's criteria
+cannot hide roles from another. Scoring, drafting and the email then loop over profile
+owners, each email addressed to that user. With one user the behaviour is identical;
+a second is a row in `users`, not a rewrite.
+
+**Result.** 308 tests green, typecheck clean, across ~14 files.
+
+**Blocked, and why.** `drizzle-kit generate` needs a TTY to ask whether
+`profile_version → profile_id` is a rename or a new column, and the harness has none.
+`--custom` copies the previous snapshot, so future migrations would drift; a piped
+pseudo-TTY hangs. It is waiting in the user's terminal for two keystrokes
+("create column" both times — the types differ, `integer` to `uuid`, so it is genuinely
+a new column).
+
+**Do not run the generated SQL as written.** It drops `profile_version` and adds an
+empty `profile_id`, which orphans 292 matches and the drafts and outreach beneath them.
+The backfill (`UPDATE … FROM profile` keyed on the old version) has to be inserted
+between the add and the drop.
+
+**Still to come.** Signup behind an invite gate, and the avatar picker on the login
+screen.
+
+**Files.** `src/db/schema/{users,profile,strengths,matches}.ts`,
+`src/db/queries/{profile,matches}.ts`, `src/db/seed-profile.ts`, `src/lib/session.ts`,
+`src/lib/notify.ts`, `src/pipeline/{run,ingest}.ts`,
+`src/pipeline/scoring/{score,schema,schema.test}.ts`, `src/pipeline/drafting/draft.ts`,
+`src/app/(app)/{today,matches,review}/page.tsx`, `src/app/(app)/matches/actions.ts`
+
+---
+
+## 2026-09-27 19:00 — The migration, hand-written
+
+**Context.** `drizzle-kit generate` needs a TTY to ask whether `profile_version →
+profile_id` is a rename, and the harness has none. `--custom` copies the previous
+snapshot, so every later migration would diff against a stale picture. Written by hand
+instead: the SQL *and* `0008_snapshot.json`.
+
+**Two orderings a dry run caught, both of which would have failed in production.**
+
+1. The backfill has to read `profile_version` before that column is dropped — obvious
+   in hindsight, easy to write the other way round.
+2. `profile_version_unique` cannot be dropped while the old foreign keys reference it.
+   Postgres refuses, because an FK depends on the index backing the unique. Both FKs
+   go first, then the constraint. The first attempt failed on exactly this, inside a
+   transaction that was rolled back.
+
+**Verifying a hand-written snapshot.** `drizzle-kit check` says "Everything's fine",
+and — the real test — `drizzle-kit generate` reports **"No schema changes, nothing to
+migrate"**. If the snapshot disagreed with the schema by so much as a column, it would
+have produced a spurious migration or hung on a rename prompt. That round trip is what
+makes a hand-written snapshot safe rather than a time bomb.
+
+**Result.** Applied. 293 matches all scoped, 9 strengths, 1 profile owned, 27 drafts
+and 27 outreach rows intact — nothing lost. 308 tests green; lint, typecheck and build
+clean. `/today` renders against the migrated schema: queue 20, 293 matches, 2,325
+postings.
+
+**Files.** `drizzle/0008_scope_to_user.sql`, `drizzle/meta/0008_snapshot.json`,
+`drizzle/meta/_journal.json`, `src/db/queries/profile.ts`

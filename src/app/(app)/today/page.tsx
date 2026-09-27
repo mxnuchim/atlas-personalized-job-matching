@@ -10,10 +10,10 @@ import { PageHeader } from "@/components/page-header";
 import { StatStrip } from "@/components/stat-strip";
 import { countDailyQueue, getMatchCounts, listDailyQueue } from "@/db/queries/matches";
 import { countJobs } from "@/db/queries/jobs";
-import { getCurrentProfile } from "@/db/queries/profile";
 import { getLastFinishedRun } from "@/db/queries/runs";
 import { env } from "@/lib/env";
 import { nextRunLabel } from "@/lib/schedule";
+import { requireProfile } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Today",
@@ -22,12 +22,15 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function TodayPage() {
-  const [counts, queue, waiting, jobCount, profile, lastRun] = await Promise.all([
-    getMatchCounts(),
-    listDailyQueue(env.DAILY_QUEUE_SIZE, env.MAX_PER_COMPANY),
-    countDailyQueue(),
+  // Everything on this page is scoped to the signed-in user's profile. A new account
+  // has none until it is seeded, which is an empty state rather than an error.
+  const { profile } = await requireProfile();
+
+  const [counts, queue, waiting, jobCount, lastRun] = await Promise.all([
+    profile ? getMatchCounts(profile.id) : { total: 0, strong: 0, possible: 0, scoredToday: 0 },
+    profile ? listDailyQueue(profile.id, env.DAILY_QUEUE_SIZE, env.MAX_PER_COMPANY) : [],
+    profile ? countDailyQueue(profile.id) : 0,
     countJobs(),
-    getCurrentProfile(),
     getLastFinishedRun(),
   ]);
 

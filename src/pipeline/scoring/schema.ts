@@ -71,19 +71,18 @@ export function buildAssessmentSchema(strengthKeys: string[]) {
 /** Pure mapper: validated assessment → a `matches` row. Tier is derived, not trusted. */
 export function assessmentToMatch(params: {
   jobId: string;
-  profileVersion: number;
+  profileId: string;
   assessment: Assessment;
   model: string;
   tokensIn: number | null;
   tokensOut: number | null;
   validStrengthKeys: Set<string>;
 }): NewMatch {
-  const { jobId, profileVersion, assessment, model, tokensIn, tokensOut, validStrengthKeys } =
-    params;
+  const { jobId, profileId, assessment, model, tokensIn, tokensOut, validStrengthKeys } = params;
 
   return {
     jobId,
-    profileVersion,
+    profileId,
     overall: assessment.overall,
     tier: fitTier(assessment.overall),
     dimensions: assessment.dimensions,
