@@ -921,3 +921,23 @@ inline value is the default for the clients that ignore the block.
 **Rule.** In email, dark mode is a property of each element that sets a colour, not of
 the container. And unit tests cannot see this — the assertions all passed. Render the
 thing in both schemes and look at it.
+
+---
+
+## 2026-09-27 17:50 — The subject said the same number twice
+
+**Problem.** The first real daily email went out reading "Atlas: 20 roles ready, 20
+strong".
+
+**Root cause.** `buildSubject` appended the strong count whenever it was above zero,
+which reads well at "20 roles ready, 6 strong" and badly when the two numbers are
+equal. And they are equal often, structurally: the queue takes the *top* of a list
+sorted by fit, so any decent day fills all twenty slots with strong matches. The unit
+tests used 6-of-20 because that is the shape I pictured.
+
+**Fix.** Fold it into the noun when every queued role is strong — "20 strong roles
+ready" — and keep the appended form only when it adds something.
+
+**Rule.** Test copy with the distribution the data actually produces, not the one that
+makes the sentence read nicely. A capped, sorted list systematically returns the top of
+the range, so the "all of them" case is the common case, not the edge.

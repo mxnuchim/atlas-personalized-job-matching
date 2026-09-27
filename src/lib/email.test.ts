@@ -33,6 +33,13 @@ describe("buildSubject", () => {
     expect(buildSubject(run({ queued: 1 }))).toBe("Atlas: 1 role ready");
   });
 
+  it("does not restate the count when every role is strong", () => {
+    // Real data: the queue is capped at the top of the list, so a good day fills it
+    // entirely with strong matches. "20 roles ready, 20 strong" says it twice.
+    expect(buildSubject(run({ queued: 20, strong: 20 }))).toBe("Atlas: 20 strong roles ready");
+    expect(buildSubject(run({ queued: 1, strong: 1 }))).toBe("Atlas: 1 strong role ready");
+  });
+
   it("omits strong when there are none, rather than saying zero", () => {
     expect(buildSubject(run({ queued: 4 }))).toBe("Atlas: 4 roles ready");
   });

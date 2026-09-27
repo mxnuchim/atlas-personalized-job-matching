@@ -89,8 +89,17 @@ export function shortfall(run: DailyEmailInput): string {
  */
 export function buildSubject(run: DailyEmailInput): string {
   if (run.queued === 0) return "Atlas: nothing new today";
+
+  const noun = `role${run.queued === 1 ? "" : "s"}`;
+
+  // When every queued role is strong, ", 20 strong" after "20 roles ready" is noise —
+  // it restates the count it just gave. Fold it into the noun instead. Seen on real
+  // data: the queue is capped at the top of the list, so a good day fills it entirely
+  // with strong matches.
+  if (run.strong >= run.queued) return `Atlas: ${run.queued} strong ${noun} ready`;
+
   const strong = run.strong > 0 ? `, ${run.strong} strong` : "";
-  return `Atlas: ${run.queued} role${run.queued === 1 ? "" : "s"} ready${strong}`;
+  return `Atlas: ${run.queued} ${noun} ready${strong}`;
 }
 
 /**
