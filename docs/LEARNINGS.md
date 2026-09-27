@@ -941,3 +941,27 @@ ready" — and keep the appended form only when it adds something.
 **Rule.** Test copy with the distribution the data actually produces, not the one that
 makes the sentence read nicely. A capped, sorted list systematically returns the top of
 the range, so the "all of them" case is the common case, not the edge.
+
+---
+
+## 2026-09-27 18:05 — Falsy-zero made "none" unexpressible, and it defaulted to the maximum
+
+**Problem.** A verification run invoked with `DRAFT_LIMIT=0` drafted twenty.
+
+**Root cause.** Three near-copies of the same parse, each treating `0` as "not
+supplied": `positive()` in the CLI, `positiveLimit()` in the route handler, and
+`options.draftLimit ? { limit } : {}` in `run.ts`. The failure mode is the nasty one —
+it did not reject the request or pass zero through, it fell back to the **stage
+default**, so the one caller that wanted nothing got the most the stage can do. The
+Fetch now button passes `draftLimit: 0` deliberately, so it had been drafting twenty on
+every press since it shipped.
+
+**Fix.** One `parseLimit` in `src/pipeline/limits.ts`, tested against zero, unset,
+empty string, the cap, fractions and junk. `undefined` means "use the default", `0`
+means "do nothing", and they are now different values rather than the same falsy one.
+
+**Rule.** For any numeric option, ask what zero should mean before writing the guard —
+for a limit it is a legitimate instruction, not an absence. `value ? a : b` cannot tell
+"zero" from "missing", and when the fallback is a default rather than an error, the
+mistake is silent and expensive. Three copies of a parse is three chances to get the
+same edge wrong; one tested definition is one.

@@ -23,6 +23,14 @@ export function FetchNow({ nextRun }: { nextRun: string }) {
         toast.error(result.error);
         return;
       }
+
+      if (result.mode === "dispatched") {
+        // The run happens elsewhere and takes minutes, so the honest confirmation is
+        // that it started — not a count this page cannot yet know.
+        toast.success("Run started. The email arrives when it finishes.");
+        return;
+      }
+
       toast.success(
         result.scored > 0
           ? `${result.scored} scored, ${result.strong} strong, ${result.newJobs} new postings.`

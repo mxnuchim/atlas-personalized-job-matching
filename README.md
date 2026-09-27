@@ -71,6 +71,14 @@ Health check: `curl localhost:3000/api/health` → `{ "ok": true }`.
 | `npm run db:seed` | Seed the single user |
 | `npm run db:seed:profile` | Seed the profile, strengths and evidence |
 | `npm run db:seed:sources` | Seed the verified job-source catalogue |
+| `npm run pipeline:run` | Run the pipeline once against the configured database |
+
+## Deploying
+
+Vercel serves the UI; GitHub Actions runs the pipeline against the same database. A
+run is ~12 minutes of LLM calls, which no serverless ceiling allows — see
+[docs/DEPLOY.md](docs/DEPLOY.md) for the full walkthrough, the environment contract and
+what it costs (~$9/month at the default limits).
 
 ## Project layout
 

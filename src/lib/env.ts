@@ -72,6 +72,22 @@ const envSchema = z.object({
   MAX_POSTING_AGE_DAYS: z.coerce.number().int().min(1).max(365).default(30),
 
   /**
+   * Triggering a run from the app.
+   *
+   * A pipeline run is ~12 minutes, far past any serverless ceiling, so in production
+   * the Fetch now button cannot do the work itself — it asks GitHub Actions to. Set
+   * these and the button dispatches the workflow; leave them unset (local dev) and it
+   * runs the pipeline inline, which is faster to iterate against.
+   *
+   * The token needs only `actions: write` on this one repository.
+   */
+  GITHUB_DISPATCH_TOKEN: z.string().optional(),
+  /** `owner/repo`, e.g. "mxnuchim/atlas". */
+  GITHUB_REPO: z.string().optional(),
+  GITHUB_REF: z.string().default("main"),
+  GITHUB_WORKFLOW_FILE: z.string().default("pipeline.yml"),
+
+  /**
    * The daily email (PRD §8 step 7). Sent through Resend; unset means no email, and
    * the run still records everything it did either way.
    *

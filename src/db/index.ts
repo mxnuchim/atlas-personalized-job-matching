@@ -18,7 +18,10 @@ const globalForDb = globalThis as unknown as {
 const client =
   globalForDb.__atlasClient ??
   postgres(env.DATABASE_URL, {
-    max: isProduction ? 5 : 10,
+    // One connection per instance in production. Serverless gives every concurrent
+    // invocation its own pool, so a `max` above 1 multiplies by however many are warm
+    // and exhausts a pooled endpoint's connection limit under trivial load.
+    max: isProduction ? 1 : 10,
     prepare: false,
   });
 

@@ -6,6 +6,11 @@ name: Pipeline
 # Once daily, not twice: the limit is how many roles a person can apply to in a day,
 # not how fast postings appear.
 #
+# This runs the pipeline *directly against the database* rather than calling the
+# deployed app. A run is roughly twelve minutes of LLM calls, which no serverless
+# function ceiling allows — so the web app serves the UI and the schedule lives here,
+# where the limit is six hours.
+#
 # The hours are UTC — GitHub Actions speaks no other timezone — and are derived from
 # RUN_HOURS in src/lib/schedule.ts. `schedule.test.ts` fails if the two drift apart.
 on:
@@ -29,60 +34,40 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Generous: a full ingest plus 50 scorings is ~12 minutes, and a slow provider
+    # should not lose the run. The concurrency group stops overlap either way.
+    timeout-minutes: 45
 
     steps:
-      - name: Trigger the pipeline
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run the pipeline
         env:
-          APP_URL: ${{ secrets.APP_URL }}
-          PIPELINE_TRIGGER_SECRET: ${{ secrets.PIPELINE_TRIGGER_SECRET }}
+          # Secrets — set these in Settings → Secrets and variables → Actions.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL_TO: ${{ secrets.NOTIFY_EMAIL_TO }}
+          # Non-secret config — set as repository *variables*, not secrets, so they
+          # are readable in the logs when something looks wrong.
+          APP_URL: ${{ vars.APP_URL }}
+          NOTIFY_EMAIL_FROM: ${{ vars.NOTIFY_EMAIL_FROM }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'openai' }}
+          MODEL_SCORING: ${{ vars.MODEL_SCORING || 'gpt-5-mini' }}
+          MODEL_DRAFTING: ${{ vars.MODEL_DRAFTING || 'gpt-5-mini' }}
+          DAILY_QUEUE_SIZE: ${{ vars.DAILY_QUEUE_SIZE || '20' }}
+          MAX_PER_COMPANY: ${{ vars.MAX_PER_COMPANY || '4' }}
+          MAX_POSTING_AGE_DAYS: ${{ vars.MAX_POSTING_AGE_DAYS || '30' }}
+          TZ: ${{ vars.TZ || 'UTC' }}
+          LOG_LEVEL: info
           SCORE_LIMIT: ${{ inputs.scoreLimit }}
           DRAFT_LIMIT: ${{ inputs.draftLimit }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${APP_URL:-}" ] || [ -z "${PIPELINE_TRIGGER_SECRET:-}" ]; then
-            echo "::error::Set the APP_URL and PIPELINE_TRIGGER_SECRET repository secrets."
-            exit 1
-          fi
-
-          body='{}'
-          [ -n "${SCORE_LIMIT:-}" ] && body=$(jq -cn --argjson v "$SCORE_LIMIT" '{scoreLimit:$v}')
-          [ -n "${DRAFT_LIMIT:-}" ] && body=$(echo "$body" | jq -c --argjson v "$DRAFT_LIMIT" '.draftLimit=$v')
-
-          # --fail-with-body so a non-2xx still prints why before the step fails.
-          response=$(curl -sS --fail-with-body \
-            --max-time 900 \
-            -X POST "${APP_URL%/}/api/pipeline/run" \
-            -H "Authorization: Bearer ${PIPELINE_TRIGGER_SECRET}" \
-            -H "Content-Type: application/json" \
-            -d "$body")
-
-          echo "$response" | jq .
-
-          # Surface the run on the Actions summary page, so the schedule is observable
-          # without opening the app.
-          {
-            echo "### Pipeline run"
-            echo ""
-            echo "$response" | jq -r '
-              "| stage | result |",
-              "|---|---|",
-              "| ingest | \(.ingest.seen) seen, \(.ingest.inserted) new |",
-              "| scoring | \(.scoring.scored) scored, \(.scoring.failed) failed |",
-              "| drafting | \(.drafting.drafted) drafted, \(.drafting.failed) failed |",
-              "| cost | $\(.totals.costUsd // "unknown") |",
-              "| status | \(.totals.status) |"
-            '
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          # A partial run is not a failed workflow — per-item errors are recorded on the
-          # run row by design. Only a failed run turns the job red.
-          status=$(echo "$response" | jq -r '.totals.status')
-          if [ "$status" = "failed" ]; then
-            echo "::error::Pipeline run finished with status: failed"
-            exit 1
-          fi
-          if [ "$status" = "partial" ]; then
-            echo "::warning::Pipeline run finished with errors — see the Runs screen."
-          fi
+        run: npm run pipeline:run

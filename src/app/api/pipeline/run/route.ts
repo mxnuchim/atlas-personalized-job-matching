@@ -3,21 +3,11 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { env } from "@/lib/env";
+import { MAX_LIMIT, parseLimit } from "@/pipeline/limits";
 import { runPipeline } from "@/pipeline/run";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-/**
- * Caps a caller-supplied limit so a stray value cannot start an unbounded run.
- *
- * Raised from 200 once ingest covered 66 boards: the first multi-source run left
- * ~4,000 relevant postings unscored, and a ceiling of 200 made draining that backlog
- * impossible rather than merely slow. Scheduled runs are unaffected — they send no
- * body and use the stage default of 50, so the cost of the twice-daily run is
- * unchanged. This ceiling only bounds a backfill someone asked for on purpose.
- */
-const MAX_LIMIT = 1000;
 
 /**
  * The scheduled pipeline's entry point (PRD §6). Guarded by a bearer token.
@@ -32,8 +22,8 @@ export async function POST(request: Request) {
   let draftLimit: number | undefined;
   try {
     const body = (await request.json()) as { scoreLimit?: unknown; draftLimit?: unknown };
-    scoreLimit = positiveLimit(body?.scoreLimit);
-    draftLimit = positiveLimit(body?.draftLimit);
+    scoreLimit = parseLimit(body?.scoreLimit, MAX_LIMIT);
+    draftLimit = parseLimit(body?.draftLimit, MAX_LIMIT);
   } catch {
     // No/invalid body — cron triggers send none; fall back to the stage defaults.
   }
@@ -69,9 +59,4 @@ function authorized(request: Request): boolean {
   // timingSafeEqual throws on a length mismatch, which is itself a (minor) leak; it is
   // unavoidable without hashing, and length alone gives an attacker very little.
   return a.length === b.length && timingSafeEqual(a, b);
-}
-
-function positiveLimit(value: unknown): number | undefined {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return undefined;
-  return Math.min(Math.floor(value), MAX_LIMIT);
 }

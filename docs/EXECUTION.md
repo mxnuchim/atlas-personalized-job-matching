@@ -1225,3 +1225,97 @@ well under Gmail's ~102 KB clipping threshold.
 
 **Files.** `src/app/layout.tsx`, `src/app/globals.css`, `src/lib/{email.ts,email.test.ts,notify.ts}`,
 `src/pipeline/run.ts`, `package.json`, `docs/INTERFACE.md`
+
+---
+
+## 2026-09-27 18:10 — Deployment prep: Vercel for the UI, Actions for the pipeline
+
+**Context.** "How do I deploy on Vercel, and what does it cost?" The app deploys
+cleanly; the pipeline cannot. A run is roughly twelve minutes of LLM calls, which is
+far past any serverless function ceiling on any plan.
+
+**The split.** Vercel serves the UI and Server Actions. GitHub Actions runs the
+pipeline directly against the same database, where the limit is six hours rather than
+seconds. Neon holds the data. This is what `src/lib/schedule.ts` already assumed by
+keeping the schedule outside the app.
+
+**Action.**
+
+*Pool size.* `src/db/index.ts` drops `max` from 5 to 1 in production. Serverless gives
+every concurrent invocation its own pool, so anything above 1 multiplies by however
+many instances are warm and exhausts a pooled endpoint under trivial load.
+
+*A real entry point.* `src/pipeline/cli.ts` plus `npm run pipeline:run`. Writes a
+summary table to the Actions run page — with the source-coverage row marked when it is
+short, since every other count is proportional to it — and exits non-zero only on a
+genuinely failed run. A `partial` run recorded per-item errors and still did its work,
+so reddening the job for that would train you to ignore a red job.
+
+*The workflow* now runs that command instead of curling the deployed app. Non-sensitive
+config lives in repository *variables* rather than secrets, because a masked model name
+is unreadable exactly when you are working out why a run behaved oddly.
+
+*Fetch now* gained a dispatched mode: with `GITHUB_DISPATCH_TOKEN` and `GITHUB_REPO`
+set it asks Actions to run and reports that it started, which is the honest
+confirmation — the page cannot know a count it has not computed. Unset, it runs inline,
+which is faster to iterate against locally. The mode follows what is configured rather
+than a flag, so it cannot be pointed at the option the environment cannot support.
+
+*`docs/DEPLOY.md`* — the walkthrough, both environment contracts, verification steps,
+measured costs, and the three failure modes worth knowing: an unverified sending
+domain, a run that loses sources, and GitHub disabling schedules on quiet repositories.
+
+**Cost, from the `runs` table rather than estimated.** Scoring $0.0047/job, drafting
+$0.0055/draft. At the default limits — 50 scored, ~10 new strong drafted — that is
+**~$0.29/day, ~$9/month**, with Neon, Vercel, Resend and Actions all inside free tiers.
+Stated plainly in the guide: the cron scores 50/day against an inflow of 70–181, so the
+unscored backlog grows. Deliberate, since scoring is newest-first and the queue needs
+20, but "everything scored" is not the steady state.
+
+**Result.** 296 tests green; lint, typecheck and build clean, and the schedule drift
+test still passes against the rewritten workflow. The CLI was still executing its first
+real run at time of writing — result in the next entry.
+
+**Files.** `src/pipeline/cli.ts`, `src/db/index.ts`, `src/lib/env.ts`,
+`src/app/(app)/today/actions.ts`, `src/components/fetch-now.tsx`,
+`.github/workflows/pipeline.yml`, `docs/DEPLOY.md`, `README.md`, `.env.example`,
+`package.json`
+
+---
+
+## 2026-09-27 18:05 — CLI verification, and the bug it found
+
+**Result of the run promised in the previous entry.** The CLI works end to end:
+
+```
+runId e442f2e9 · 3.7 minutes · sources 66/66 · seen 11,865 · new 83
+scored 1 · drafted 20 · $0.1121 · status ok · emailed false
+```
+
+Two useful confirmations. All 66 sources answered, so the 20 failures in the earlier
+run were transient network trouble and not the boards refusing us. And prompt caching
+is working — 1,792 of 3,600 input tokens were served from cache, which is why the
+measured per-job cost sits slightly under the $0.0047 estimate.
+
+**`drafted: 20` was not what was asked for.** The run was invoked with `DRAFT_LIMIT=0`
+to keep the check cheap.
+
+**Root cause.** Three near-copies of the same parse, all treating `0` as "not
+supplied": `positive()` in the CLI, `positiveLimit()` in the route handler, and
+`options.draftLimit ? … : {}` in `run.ts`. Falsy-zero made "run this stage on nothing"
+unexpressible — and it did not fail, it substituted the stage *default*, so asking for
+no drafts produced the maximum of twenty. `fetchNowAction` passes `draftLimit: 0` for
+exactly this reason, so the Fetch now button had been drafting twenty every press since
+it shipped.
+
+**Fix.** One definition in `src/pipeline/limits.ts` — `parseLimit`, with six tests
+covering zero, unset, empty string, the cap, fractions and junk. All three call sites
+now use it, and `run.ts` checks `=== undefined` rather than truthiness.
+
+The twenty drafts cost $0.108 and are real output for strong matches, so nothing was
+wasted beyond the intent.
+
+**Result.** 302 tests green; lint, typecheck and build clean.
+
+**Files.** `src/pipeline/{limits.ts,limits.test.ts,cli.ts,run.ts}`,
+`src/app/api/pipeline/run/route.ts`

@@ -38,8 +38,15 @@ export async function runPipeline(
 
   try {
     const ingest = await runIngest();
-    const scoring = await runScore(options.scoreLimit ? { limit: options.scoreLimit } : {});
-    const drafting = await runDraft(options.draftLimit ? { limit: options.draftLimit } : {});
+    const scoring = await runScore(
+      options.scoreLimit === undefined ? {} : { limit: options.scoreLimit },
+    );
+    // `?? undefined`, never a truthiness check: a limit of 0 means "draft nothing",
+    // and `0 ? … : {}` silently turned that into the stage default of 20 — so the one
+    // caller that wanted no drafting got the most it can do.
+    const drafting = await runDraft(
+      options.draftLimit === undefined ? {} : { limit: options.draftLimit },
+    );
 
     const errors: RunError[] = [
       ...ingest.results

@@ -21,6 +21,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:seed:profile": "tsx src/db/seed-profile.ts",
     "db:seed:sources": "tsx src/db/seed-sources.ts",
+    "pipeline:run": "tsx --conditions=react-server src/pipeline/cli.ts",
     "llm:smoke": "tsx --conditions=react-server src/lib/llm/smoke.ts"
   },
   "dependencies": {
