@@ -35,11 +35,17 @@ From your machine, pointed at Neon:
 
 ```bash
 export DATABASE_URL="postgres://…-pooler.…neon.tech/…?sslmode=require"
+export AUTH_USER_EMAIL="you@example.com"      # names the account the profile belongs to
+export AUTH_USER_PASSWORD="…"
 npm run db:migrate
-npm run db:seed          # the single user, from AUTH_USER_EMAIL / AUTH_USER_PASSWORD
-npm run db:seed:profile  # positioning, strengths, evidence
+npm run db:seed          # creates the user
+npm run db:seed:profile  # positioning, strengths, evidence — attached to AUTH_USER_EMAIL
 npm run db:seed:sources  # the 66-source catalogue
 ```
+
+**Order matters now.** A profile belongs to a user, so `db:seed` has to run first;
+`db:seed:profile` fails with a clear message rather than attaching to "the only user",
+which stops being a meaningful phrase the moment a second person exists.
 
 Nothing runs migrations automatically. That is deliberate — a migration that runs on
 every deploy is a migration that runs during a rollback.
