@@ -35,14 +35,27 @@ export async function countUsers(): Promise<number> {
   return row?.count ?? 0;
 }
 
+/**
+ * The first account to exist owns the install; every later one is a member.
+ *
+ * Without this every signup defaulted to `owner`, which would have made the
+ * owner-only guard on sources decorative. Ownership is "you set this up", and that is
+ * true of exactly one person.
+ */
 export async function createUser(params: {
   email: string;
   passwordHash: string;
   name: string;
 }): Promise<User> {
+  const first = (await countUsers()) === 0;
   const [row] = await db
     .insert(users)
-    .values({ email: params.email, passwordHash: params.passwordHash, name: params.name })
+    .values({
+      email: params.email,
+      passwordHash: params.passwordHash,
+      name: params.name,
+      role: first ? "owner" : "admin",
+    })
     .returning();
   return row;
 }

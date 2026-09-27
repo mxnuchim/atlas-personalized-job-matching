@@ -66,7 +66,7 @@ jobs:
           DAILY_QUEUE_SIZE: ${{ vars.DAILY_QUEUE_SIZE || '20' }}
           MAX_PER_COMPANY: ${{ vars.MAX_PER_COMPANY || '4' }}
           MAX_POSTING_AGE_DAYS: ${{ vars.MAX_POSTING_AGE_DAYS || '30' }}
-          TZ: ${{ vars.TZ || 'UTC' }}
+          APP_TZ: ${{ vars.APP_TZ || 'UTC' }}
           LOG_LEVEL: info
           SCORE_LIMIT: ${{ inputs.scoreLimit }}
           DRAFT_LIMIT: ${{ inputs.draftLimit }}

@@ -6,6 +6,8 @@ import { PageHeader } from "@/components/page-header";
 import { SourcesManager } from "@/components/sources-manager";
 import { StatStrip } from "@/components/stat-strip";
 import { listSourcesWithCounts } from "@/db/queries/sources";
+import { requireSession } from "@/lib/session";
+import { shouldSkip } from "@/pipeline/source-health";
 
 export const metadata: Metadata = {
   title: "Sources",
@@ -19,7 +21,7 @@ export const dynamic = "force-dynamic";
  * which is not a thing you do when you notice a gap on a Tuesday.
  */
 export default async function SourcesPage() {
-  const sources = await listSourcesWithCounts();
+  const [sources, session] = await Promise.all([listSourcesWithCounts(), requireSession()]);
 
   const enabled = sources.filter((s) => s.enabled);
   const open = sources.reduce((total, s) => total + s.openCount, 0);
@@ -28,6 +30,15 @@ export default async function SourcesPage() {
   // postings the relevance gate rejects — so the label says what is true and does not
   // guess which.
   const empty = enabled.filter((s) => s.jobCount === 0).length;
+  // Quarantined by the pipeline, not by a person — worth its own number, since a
+  // board nobody turned off that is nonetheless not being read is the surprising case.
+  const resting = enabled.filter(
+    (s) =>
+      shouldSkip({
+        consecutiveFailures: s.consecutiveFailures,
+        lastErrorAt: s.lastErrorAt ? new Date(s.lastErrorAt) : null,
+      }).skip,
+  ).length;
 
   return (
     <div className="space-y-8">
@@ -53,10 +64,15 @@ export default async function SourcesPage() {
                 value: String(empty),
                 hint: empty > 0 ? "filtered out, or a wrong token" : undefined,
               },
+              {
+                label: "Resting",
+                value: String(resting),
+                hint: resting > 0 ? "failing repeatedly; retried later" : undefined,
+              },
             ]}
           />
 
-          <SourcesManager sources={sources} />
+          <SourcesManager sources={sources} isOwner={session.user.role === "owner"} />
         </>
       )}
     </div>

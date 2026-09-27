@@ -1579,3 +1579,53 @@ does not clear it, the migration has not reached Neon — the two hypotheses hav
 same blast radius, and the same fix order regardless.
 
 **Files.** `src/lib/env.ts`, `src/lib/env.test.ts`
+
+---
+
+## 2026-09-27 20:20 — APP_TZ, and making the shared source flag honest
+
+**Context.** Vercel refuses to let you define `TZ` — it is a POSIX variable that sets
+the whole process's timezone, so hosts reserve it. And the sources review: one boolean
+answering three unrelated questions.
+
+**`TZ` → `APP_TZ`.** Atlas's display and schedule timezone is now its own variable
+rather than an argument with the runtime about what the machine's clock reads. `TZ` is
+still honoured as a fallback, because that is what a local `.env` and every shell habit
+sets — `APP_TZ` wins where both exist.
+
+**Sources: three concerns, separated.**
+
+*Capability* stays `kind` + `config`. *Health* is new and written only by the pipeline
+— `consecutive_failures`, `last_ok_at`, `last_error_at`, `last_error`. *Intent* is
+`enabled`, now with `disabled_by` and `disabled_at`, so a board being off is a fact
+with an author instead of an unexplained switch.
+
+*Quarantine* (`src/pipeline/source-health.ts`): forgiving early, firm late. Two
+failures are weather — the twenty that failed in one run were all transient. Three
+rests the board six hours, six rests it a day, ten rests it a week. A rest is a pause,
+not a verdict: the source is tried again the moment it elapses, and failures with no
+recorded time are always retried rather than rested forever on incomplete data.
+
+Resting sources are excluded from both sides of the coverage figure. Coverage answers
+"of the boards we asked, how many answered", and a board we chose not to ask is
+neither — counting it as a failure would make the banner cry wolf about a decision we
+made on purpose.
+
+*Owner-only disabling.* `users.role` existed and was unused. It was also useless as a
+guard, because every signup defaulted to `owner` — the first account now owns the
+install and later ones are members. Disabling a source changes everyone's corpus, so
+it belongs to whoever set this up.
+
+**Deliberately not built: per-user subscriptions.** That is the eventual shape, and it
+is a tenancy model for a household. Two people who mostly want the same boards do not
+need one; the attribution columns make the shared flag honest until someone actually
+wants a board the other does not.
+
+**Result.** 352 tests green; lint, typecheck and build clean. `/sources` now reports
+enabled, open postings, holding-nothing and resting, and each row says whether it is
+OK, failing, resting, or off and by whom.
+
+**Files.** `src/lib/env.ts` + test, `src/db/schema/sources.ts`,
+`src/db/queries/{sources,users}.ts`, `src/pipeline/{source-health,source-health.test,ingest}.ts`,
+`src/app/(app)/sources/{page.tsx,actions.ts}`, `src/components/sources-manager.tsx`,
+`drizzle/0009_source_health.sql`, `.github/workflows/pipeline.yml`, `docs/DEPLOY.md`

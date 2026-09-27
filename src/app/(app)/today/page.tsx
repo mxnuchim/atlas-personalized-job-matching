@@ -34,7 +34,7 @@ export default async function TodayPage() {
     getLastFinishedRun(),
   ]);
 
-  const nextRun = nextRunLabel(new Date(), env.TZ);
+  const nextRun = nextRunLabel(new Date(), env.APP_TZ);
   const strengthLabels = Object.fromEntries(
     (profile?.strengths ?? []).map((s) => [s.key, s.label]),
   );

@@ -29,7 +29,7 @@ export default async function RunsPage() {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: env.TZ,
+    timeZone: env.APP_TZ,
   });
 
   return (

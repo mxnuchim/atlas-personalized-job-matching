@@ -3,7 +3,7 @@ import "server-only";
 import { db } from "@/db";
 import { getSourceExternalIds, markJobsClosed, reopenJobs } from "@/db/queries/jobs";
 import { getCurrentProfile, listProfileOwners } from "@/db/queries/profile";
-import { getEnabledSources } from "@/db/queries/sources";
+import { getEnabledSources, recordSourceFailure, recordSourceSuccess } from "@/db/queries/sources";
 import { jobs, type NewJob, type Source } from "@/db/schema";
 import { isStale } from "@/lib/age";
 import { env } from "@/lib/env";
@@ -11,6 +11,7 @@ import { log } from "@/lib/logger";
 
 import { decideClosure } from "./closure";
 import { collapseRoles } from "./dedupe";
+import { shouldSkip } from "./source-health";
 import { buildCriteria, isRelevant, type RelevanceCriteria } from "./relevance";
 import { getFetcher } from "./sources";
 
@@ -31,6 +32,8 @@ export type IngestResult = {
   expired: number;
   closed: number;
   reopened: number;
+  /** Set when the source was rested rather than attempted. Not an error. */
+  resting?: string;
   error?: string;
 };
 
@@ -43,9 +46,11 @@ export type IngestSummary = {
   expired: number;
   closed: number;
   reopened: number;
-  /** How many enabled sources answered, out of how many were tried. */
+  /** How many attempted sources answered, out of how many were attempted. */
   sourcesOk: number;
   sourcesTotal: number;
+  /** Rested this run, so neither attempted nor failed. */
+  sourcesResting: number;
   results: IngestResult[];
 };
 
@@ -77,14 +82,29 @@ export async function ingestSource(
     return { ...empty, error: `No fetcher for source kind "${source.kind}"` };
   }
 
+  // A board that has failed repeatedly is rested rather than asked again every run.
+  // Reported as `resting`, never as an error: it is a decision we made, not a failure
+  // this run suffered, and counting it as one would make coverage look worse than it is.
+  const rest = shouldSkip({
+    consecutiveFailures: source.consecutiveFailures,
+    lastErrorAt: source.lastErrorAt,
+  });
+  if (rest.skip) {
+    logger.info({ source: source.name, until: rest.until, reason: rest.reason }, "source resting");
+    return { ...empty, resting: rest.reason };
+  }
+
   let normalized;
   try {
     normalized = await fetcher(source.config);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error({ source: source.name, error: message }, "source fetch failed");
+    await recordSourceFailure(source.id, message);
     return { ...empty, error: message };
   }
+
+  await recordSourceSuccess(source.id);
 
   // Closure detection diffs against the *raw* fetch — every id the board returned,
   // before the age limit and the relevance gate. Diffing the filtered set would read
@@ -192,8 +212,11 @@ export async function runIngest(): Promise<IngestSummary> {
     expired: results.reduce((total, result) => total + result.expired, 0),
     closed: results.reduce((total, result) => total + result.closed, 0),
     reopened: results.reduce((total, result) => total + result.reopened, 0),
-    sourcesOk: results.filter((result) => !result.error).length,
-    sourcesTotal: results.length,
+    // Resting sources are excluded from both: coverage answers "of the boards we
+    // asked, how many answered", and a board we chose not to ask is neither.
+    sourcesOk: results.filter((r) => !r.error && !r.resting).length,
+    sourcesTotal: results.filter((r) => !r.resting).length,
+    sourcesResting: results.filter((r) => r.resting).length,
     results,
   };
   logger.info({ sources: sources.length, ...summary, results: undefined }, "ingest complete");

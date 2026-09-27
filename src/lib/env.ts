@@ -125,13 +125,20 @@ const envSchema = z.object({
 
   // Ops
   /**
-   * An IANA name — "UTC", "Africa/Lagos". Validated here because the failure is
+   * An IANA name — "UTC", "Africa/Lagos".
+   *
+   * `APP_TZ`, not `TZ`: `TZ` is a POSIX variable that sets the whole process's
+   * timezone, so hosts reserve it — Vercel refuses to let you define one. Naming our
+   * own means Atlas's display and schedule timezone is ours to set without arguing
+   * with the runtime about what the machine's clock should read.
+   *
+   * Validated here because the failure is
    * otherwise invisible: `Intl.DateTimeFormat` throws on an unknown zone, and a throw
    * inside a Server Component render reaches the browser as a minified React error
    * with the real message stripped. "WAT" and "GMT+1" are the tempting wrong answers;
    * neither is an IANA zone.
    */
-  TZ: z
+  APP_TZ: z
     .string()
     .default("UTC")
     .refine(isValidTimeZone, {
@@ -186,6 +193,11 @@ function loadEnv(): Env {
     process.env.SKIP_ENV_VALIDATION === "1" || process.env.SKIP_ENV_VALIDATION === "true";
 
   const present = withoutBlanks(process.env);
+
+  // `TZ` is what a local `.env` and every POSIX habit reaches for, and it is exactly
+  // what a host will not let you set. Accept it as a fallback so the same repo works
+  // in both places, with `APP_TZ` winning where both exist.
+  if (!present.APP_TZ && present.TZ) present.APP_TZ = present.TZ;
   const source = skipValidation ? { ...BUILD_PLACEHOLDERS, ...present } : present;
 
   const parsed = envSchema.safeParse(source);

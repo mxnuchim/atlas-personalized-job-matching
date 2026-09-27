@@ -21,7 +21,7 @@ function configRows(): { label: string; value: string }[] {
   return [
     { label: "Sign-in", value: "Email & password" },
     { label: "Sending", value: "You send. Atlas drafts and tracks." },
-    { label: "Schedule", value: `${schedule} (${env.TZ})` },
+    { label: "Schedule", value: `${schedule} (${env.APP_TZ})` },
     { label: "Model provider", value: PROVIDER },
     { label: "Scoring model", value: MODELS.scoring },
     { label: "Drafting model", value: MODELS.drafting },

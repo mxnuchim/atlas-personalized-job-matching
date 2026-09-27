@@ -74,7 +74,7 @@ Set these in **Settings → Environment Variables**:
 | `RESEND_API_KEY` | your key | |
 | `NOTIFY_EMAIL_TO` | your address | |
 | `NOTIFY_EMAIL_FROM` | `Atlas <updates@yourdomain>` | domain must be verified in Resend |
-| `TZ` | `UTC` | must match what the cron was generated for |
+| `APP_TZ` | `UTC` | must match what the cron was generated for. **Not `TZ`** — hosts reserve that name |
 | `DAILY_QUEUE_SIZE` | `20` | 5–30 |
 | `MAX_PER_COMPANY` | `4` | |
 | `MAX_POSTING_AGE_DAYS` | `30` | |
@@ -92,7 +92,7 @@ In the repository, under **Settings → Secrets and variables → Actions**:
 
 **Variables** — `APP_URL`, `NOTIFY_EMAIL_FROM`, and optionally `LLM_PROVIDER`,
 `MODEL_SCORING`, `MODEL_DRAFTING`, `DAILY_QUEUE_SIZE`, `MAX_PER_COMPANY`,
-`MAX_POSTING_AGE_DAYS`, `TZ`. The workflow has sane defaults for every variable, so
+`MAX_POSTING_AGE_DAYS`, `APP_TZ`. The workflow has sane defaults for every variable, so
 only the first two are required.
 
 Variables rather than secrets for the non-sensitive ones on purpose: a secret is masked

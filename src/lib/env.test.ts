@@ -75,19 +75,26 @@ describe("env", () => {
     // passes z.string() and then throws RangeError inside Intl, which reaches the
     // browser as a minified React error with the message stripped.
     const env = await loadWith({ TZ: "  UTC  ", LOG_LEVEL: " debug " });
-    expect(env.TZ).toBe("UTC");
+    expect(env.APP_TZ).toBe("UTC");
     expect(env.LOG_LEVEL).toBe("debug");
+  });
+
+  it("falls back to TZ, which is what a local .env actually sets", async () => {
+    // Hosts reserve `TZ` (it is POSIX), so deployments must use APP_TZ — but a local
+    // .env and every shell habit says TZ. Both work, APP_TZ wins.
+    expect((await loadWith({ TZ: "Africa/Lagos" })).APP_TZ).toBe("Africa/Lagos");
+    expect((await loadWith({ TZ: "Africa/Lagos", APP_TZ: "UTC" })).APP_TZ).toBe("UTC");
   });
 
   it("rejects a timezone the runtime cannot use", async () => {
     // Fail at boot with a message, not at render with a masked error.
-    await expect(loadWith({ TZ: "WAT" })).rejects.toThrow(/Invalid environment/);
-    await expect(loadWith({ TZ: "GMT+1" })).rejects.toThrow(/Invalid environment/);
+    await expect(loadWith({ APP_TZ: "WAT" })).rejects.toThrow(/Invalid environment/);
+    await expect(loadWith({ APP_TZ: "GMT+1" })).rejects.toThrow(/Invalid environment/);
   });
 
   it("accepts real IANA zones", async () => {
-    expect((await loadWith({ TZ: "Africa/Lagos" })).TZ).toBe("Africa/Lagos");
-    expect((await loadWith({ TZ: "UTC" })).TZ).toBe("UTC");
+    expect((await loadWith({ APP_TZ: "Africa/Lagos" })).APP_TZ).toBe("Africa/Lagos");
+    expect((await loadWith({ APP_TZ: "UTC" })).APP_TZ).toBe("UTC");
   });
 
   it("still rejects a genuinely invalid value", async () => {

@@ -54,7 +54,7 @@ describe("the committed cron matches the configured schedule", () => {
     const committed = /-\s*cron:\s*"([^"]+)"/.exec(workflow)?.[1];
 
     expect(committed, "no cron line found in .github/workflows/pipeline.yml").toBeTruthy();
-    expect(committed).toBe(cronExpression(process.env.TZ ?? "UTC"));
+    expect(committed).toBe(cronExpression(process.env.APP_TZ ?? "UTC"));
   });
 
   it("is a single daily run", () => {

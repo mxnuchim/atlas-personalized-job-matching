@@ -1106,3 +1106,41 @@ parsed number and storing the string. And any config that a library will *parse*
 (a timezone, a locale, a URL, a cron line) should be parsed at boot: the difference is
 between one clear line at startup and a masked error on whichever page happens to use
 it.
+
+---
+
+## 2026-09-27 20:20 — `TZ` is the platform's variable, not yours
+
+**Problem.** Vercel rejected the environment variable: *"The name of your Environment
+Variable is reserved."*
+
+**Root cause.** `TZ` is POSIX — it sets the timezone of the whole process, so the
+runtime owns it and hosts refuse to let an application redefine it. Atlas had been
+reading it as if it were application config, which happened to work locally because
+nothing else was competing for the name.
+
+**Fix.** `APP_TZ`, with `TZ` honoured as a fallback so a local `.env` and every shell
+habit still work.
+
+**Rule.** Before naming a configuration variable, ask whether the operating system or
+the runtime already means something by it — `TZ`, `PATH`, `HOME`, `PORT`, `NODE_ENV`,
+`LANG`. Borrowing one of those names is fine on a laptop and fails on a platform, which
+is the worst possible order to discover it in.
+
+---
+
+## 2026-09-27 20:20 — A guard against a role nobody is not a guard
+
+**Problem.** Disabling a source was about to be restricted to the `owner` role, and
+`users.role` already existed to support it.
+
+**Root cause.** It would have done nothing. `role` defaults to `owner` in the schema
+and `createUser` never set it, so every account that signed up was an owner. The check
+would have passed for everyone, looked like security in review, and protected nobody.
+
+**Fix.** The first account to exist owns the install; every later one is a member.
+Ownership means "you set this up", which is true of exactly one person.
+
+**Rule.** When adding an authorisation check, verify the distinction it depends on can
+actually be false. A permission everyone holds is not a permission, and it is worse
+than none — it reads as protection to the next person who looks.

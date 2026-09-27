@@ -1,7 +1,7 @@
 import { asc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { jobs, sources, type NewSource, type Source } from "@/db/schema";
+import { jobs, sources, users, type NewSource, type Source } from "@/db/schema";
 
 export async function getEnabledSources(): Promise<Source[]> {
   return db.select().from(sources).where(eq(sources.enabled, true));
@@ -15,6 +15,8 @@ export async function getEnabledSources(): Promise<Source[]> {
 export type SourceRow = Source & {
   jobCount: number;
   openCount: number;
+  /** Who turned it off, resolved — a switch with no author explains nothing. */
+  disabledByName: string | null;
 };
 
 export async function listSourcesWithCounts(): Promise<SourceRow[]> {
@@ -23,13 +25,20 @@ export async function listSourcesWithCounts(): Promise<SourceRow[]> {
       source: sources,
       jobCount: sql<number>`count(${jobs.id})::int`,
       openCount: sql<number>`count(${jobs.id}) filter (where ${jobs.closedAt} is null)::int`,
+      disabledByName: sql<string | null>`max(coalesce(${users.name}, ${users.email}))`,
     })
     .from(sources)
     .leftJoin(jobs, eq(jobs.sourceId, sources.id))
+    .leftJoin(users, eq(users.id, sources.disabledBy))
     .groupBy(sources.id)
     .orderBy(asc(sources.name));
 
-  return rows.map(({ source, jobCount, openCount }) => ({ ...source, jobCount, openCount }));
+  return rows.map(({ source, jobCount, openCount, disabledByName }) => ({
+    ...source,
+    jobCount,
+    openCount,
+    disabledByName,
+  }));
 }
 
 export async function createSource(row: NewSource): Promise<Source> {
@@ -70,5 +79,47 @@ export async function deleteSource(id: string): Promise<void> {
 
 export async function getSource(id: string): Promise<Source | null> {
   const [row] = await db.select().from(sources).where(eq(sources.id, id)).limit(1);
+  return row ?? null;
+}
+
+/**
+ * Health is written only here, only by the pipeline. A user's opinion about a source
+ * lives in `enabled`; whether it answers is not an opinion.
+ */
+export async function recordSourceSuccess(id: string): Promise<void> {
+  await db
+    .update(sources)
+    .set({ lastOkAt: new Date(), consecutiveFailures: 0, lastError: null })
+    .where(eq(sources.id, id));
+}
+
+export async function recordSourceFailure(id: string, message: string): Promise<void> {
+  await db
+    .update(sources)
+    .set({
+      lastErrorAt: new Date(),
+      // Incremented in SQL rather than read-modify-write: two runs must never race
+      // each other into losing a failure and resetting the backoff.
+      consecutiveFailures: sql`${sources.consecutiveFailures} + 1`,
+      lastError: message.slice(0, 500),
+    })
+    .where(eq(sources.id, id));
+}
+
+/** Set or clear `enabled`, recording who did it — a switch with no author is a mystery. */
+export async function setSourceEnabledBy(
+  id: string,
+  enabled: boolean,
+  userId: string,
+): Promise<Source | null> {
+  const [row] = await db
+    .update(sources)
+    .set(
+      enabled
+        ? { enabled: true, disabledBy: null, disabledAt: null }
+        : { enabled: false, disabledBy: userId, disabledAt: new Date() },
+    )
+    .where(eq(sources.id, id))
+    .returning();
   return row ?? null;
 }

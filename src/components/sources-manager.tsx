@@ -10,6 +10,8 @@ import {
   toggleSourceAction,
 } from "@/app/(app)/sources/actions";
 import type { SourceRow } from "@/db/queries/sources";
+import { relativeAge } from "@/lib/age";
+import { shouldSkip } from "@/pipeline/source-health";
 import { cn } from "@/lib/utils";
 
 /**
@@ -33,7 +35,7 @@ function configSummary(source: SourceRow): string {
   return String(config.board ?? "?");
 }
 
-export function SourcesManager({ sources }: { sources: SourceRow[] }) {
+export function SourcesManager({ sources, isOwner }: { sources: SourceRow[]; isOwner: boolean }) {
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState<string | null>(null);
 
@@ -64,6 +66,7 @@ export function SourcesManager({ sources }: { sources: SourceRow[] }) {
               <th className="px-4 py-2.5 text-left font-medium">Source</th>
               <th className="hidden px-4 py-2.5 text-left font-medium sm:table-cell">Kind</th>
               <th className="hidden px-4 py-2.5 text-left font-medium md:table-cell">Config</th>
+              <th className="hidden px-4 py-2.5 text-left font-medium md:table-cell">Health</th>
               <th className="px-4 py-2.5 text-right font-medium">Open</th>
               <th className="px-4 py-2.5 text-right font-medium">Status</th>
               <th className="w-10 px-4 py-2.5" />
@@ -79,6 +82,9 @@ export function SourcesManager({ sources }: { sources: SourceRow[] }) {
                 <td className="text-muted-foreground hidden truncate px-4 py-2.5 md:table-cell">
                   {configSummary(source)}
                 </td>
+                <td className="text-muted-foreground hidden px-4 py-2.5 text-xs md:table-cell">
+                  <Health source={source} />
+                </td>
                 <td className="px-4 py-2.5 text-right tabular-nums">
                   {source.openCount}
                   {source.jobCount !== source.openCount && (
@@ -89,7 +95,12 @@ export function SourcesManager({ sources }: { sources: SourceRow[] }) {
                   <button
                     type="button"
                     onClick={() => toggle(source)}
-                    disabled={pending}
+                    disabled={pending || (source.enabled && !isOwner)}
+                    title={
+                      source.enabled && !isOwner
+                        ? "Only the owner can turn a source off — it changes everyone's corpus"
+                        : undefined
+                    }
                     aria-pressed={source.enabled}
                     className="focus-visible:ring-ring rounded-md px-2 py-0.5 text-xs ring-1 transition-colors ring-inset focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                     style={{
@@ -256,4 +267,50 @@ function Field({
       {children}
     </label>
   );
+}
+
+/**
+ * What is actually happening with this board.
+ *
+ * Three different facts used to hide behind one switch: whether anyone wants it,
+ * whether it works, and who decided. Saying them separately is the whole point — a
+ * board that is off because Anwuri turned it off on Tuesday is a different situation
+ * from one that has failed twelve runs in a row, and "Disabled" described both.
+ */
+function Health({ source }: { source: SourceRow }) {
+  if (!source.enabled) {
+    return (
+      <span>
+        Off
+        {source.disabledByName ? ` · by ${source.disabledByName}` : ""}
+        {source.disabledAt ? ` · ${relativeAge(new Date(source.disabledAt))}` : ""}
+      </span>
+    );
+  }
+
+  const rest = shouldSkip({
+    consecutiveFailures: source.consecutiveFailures,
+    lastErrorAt: source.lastErrorAt ? new Date(source.lastErrorAt) : null,
+  });
+
+  if (rest.skip) {
+    return (
+      <span className="text-destructive" title={source.lastError ?? undefined}>
+        Resting · {source.consecutiveFailures} failures
+      </span>
+    );
+  }
+
+  if (source.consecutiveFailures > 0) {
+    return (
+      <span style={{ color: "var(--tier-possible-ink)" }} title={source.lastError ?? undefined}>
+        {source.consecutiveFailures} recent{" "}
+        {source.consecutiveFailures === 1 ? "failure" : "failures"}
+      </span>
+    );
+  }
+
+  // Never fetched is not the same as healthy, and an em dash says so without inventing
+  // a status the row has not earned.
+  return <span>{source.lastOkAt ? `OK · ${relativeAge(new Date(source.lastOkAt))}` : "—"}</span>;
 }

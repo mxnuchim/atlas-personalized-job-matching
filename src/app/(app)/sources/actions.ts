@@ -8,7 +8,7 @@ import {
   deleteSource,
   getSource,
   getSourceImpact,
-  setSourceEnabled,
+  setSourceEnabledBy,
 } from "@/db/queries/sources";
 import { log } from "@/lib/logger";
 import { requireSession } from "@/lib/session";
@@ -86,14 +86,25 @@ export async function createSourceAction(input: unknown): Promise<ActionResult> 
 }
 
 export async function toggleSourceAction(input: unknown): Promise<ActionResult> {
-  await requireSession();
+  const session = await requireSession();
 
   const parsed = z.object({ id: z.uuid(), enabled: z.boolean() }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "That source reference is not valid." };
 
-  const row = await setSourceEnabled(parsed.data.id, parsed.data.enabled);
+  // Sources are shared: disabling one changes what every user sees, silently and with
+  // no way for them to tell why their matches thinned out. Until subscriptions are
+  // per-user, that decision belongs to whoever owns the install.
+  if (!parsed.data.enabled && session.user.role !== "owner") {
+    return {
+      ok: false,
+      error: "Only the owner of this Atlas can turn a source off — it changes everyone's corpus.",
+    };
+  }
+
+  const row = await setSourceEnabledBy(parsed.data.id, parsed.data.enabled, session.user.id);
   if (!row) return { ok: false, error: "That source no longer exists." };
 
+  logger.info({ source: row.name, enabled: row.enabled, by: session.user.id }, "source toggled");
   revalidatePath("/sources");
   return { ok: true };
 }
