@@ -70,6 +70,26 @@ describe("env", () => {
     expect(env.LLM_MAX_CONCURRENCY).toBe(6);
   });
 
+  it("trims a padded value rather than passing it through", async () => {
+    // A value pasted into a dashboard often carries a trailing space. `TZ="UTC "`
+    // passes z.string() and then throws RangeError inside Intl, which reaches the
+    // browser as a minified React error with the message stripped.
+    const env = await loadWith({ TZ: "  UTC  ", LOG_LEVEL: " debug " });
+    expect(env.TZ).toBe("UTC");
+    expect(env.LOG_LEVEL).toBe("debug");
+  });
+
+  it("rejects a timezone the runtime cannot use", async () => {
+    // Fail at boot with a message, not at render with a masked error.
+    await expect(loadWith({ TZ: "WAT" })).rejects.toThrow(/Invalid environment/);
+    await expect(loadWith({ TZ: "GMT+1" })).rejects.toThrow(/Invalid environment/);
+  });
+
+  it("accepts real IANA zones", async () => {
+    expect((await loadWith({ TZ: "Africa/Lagos" })).TZ).toBe("Africa/Lagos");
+    expect((await loadWith({ TZ: "UTC" })).TZ).toBe("UTC");
+  });
+
   it("still rejects a genuinely invalid value", async () => {
     // Blank-tolerance must not become "accept anything".
     await expect(loadWith({ LOG_LEVEL: "loud" })).rejects.toThrow(/Invalid environment/);

@@ -8,6 +8,16 @@ import { z } from "zod";
  * fast; later-milestone values are optional so the app boots without them.
  */
 
+/** Does the runtime's timezone database know this name? */
+function isValidTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
@@ -114,7 +124,21 @@ const envSchema = z.object({
   NOTIFY_EMAIL_FROM: z.string().default("Atlas <onboarding@resend.dev>"),
 
   // Ops
-  TZ: z.string().default("UTC"),
+  /**
+   * An IANA name — "UTC", "Africa/Lagos". Validated here because the failure is
+   * otherwise invisible: `Intl.DateTimeFormat` throws on an unknown zone, and a throw
+   * inside a Server Component render reaches the browser as a minified React error
+   * with the real message stripped. "WAT" and "GMT+1" are the tempting wrong answers;
+   * neither is an IANA zone.
+   */
+  TZ: z
+    .string()
+    .default("UTC")
+    .refine(isValidTimeZone, {
+      message:
+        'Not an IANA timezone. Use a Region/City name such as "Africa/Lagos", or "UTC". ' +
+        '"WAT" and "GMT+1" are the tempting wrong answers; neither is valid.',
+    }),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
 });
 
@@ -145,7 +169,14 @@ const BUILD_PLACEHOLDERS = {
 function withoutBlanks(source: NodeJS.ProcessEnv): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(source)) {
-    if (typeof value === "string" && value.trim() !== "") out[key] = value;
+    if (typeof value !== "string") continue;
+    // Trimmed, not just tested for blankness. The first version checked
+    // `value.trim() !== ""` and then stored the *untrimmed* string, so a value pasted
+    // into a dashboard with a trailing space survived validation and failed later —
+    // `TZ="UTC "` passes `z.string()` and then throws RangeError inside Intl, which
+    // surfaces as a masked React error on whichever page happened to format a date.
+    const trimmed = value.trim();
+    if (trimmed !== "") out[key] = trimmed;
   }
   return out;
 }

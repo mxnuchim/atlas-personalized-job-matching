@@ -1076,3 +1076,33 @@ problem.
 trusting one, count the distinct values — if the population clusters, decide
 deliberately whether to break ties on evidence or to accept that the share is
 approximate. Silently arbitrary tie-breaking is the one option to rule out.
+
+---
+
+## 2026-09-27 20:02 — Trimming a value is not the same as testing it for blankness
+
+**Problem.** `/today` and `/runs` threw React error 441 in production — a masked
+"error in the Server Components render" — while every other page worked, and both
+returned 200 locally.
+
+**Root cause.** Those two are the only pages that pass `env.TZ` to
+`Intl.DateTimeFormat`. (`/settings` prints it as a label, which cannot throw.) An
+unknown zone makes `Intl` throw `RangeError`, and a throw during an RSC render reaches
+the browser as a minified React error with the real message stripped.
+
+The value got there because of a bug in the fix from earlier the same day:
+`withoutBlanks` checked `value.trim() !== ""` and then stored **`value`**, not
+`trimmed`. So `TZ="UTC "` — a trailing space of the kind a dashboard paste leaves
+behind — passed `z.string()` intact and only failed at render, on two pages, with the
+cause hidden.
+
+**Fix.** Store the trimmed value. And validate `TZ` in the schema with a real `Intl`
+call, so an unusable zone fails at boot with a message naming the tempting wrong
+answers ("WAT", "GMT+1") instead of failing at render with none.
+
+**Rule.** Whenever a check normalises a value to make a decision, store the normalised
+value — testing `trim()` and keeping the original is the same mistake as validating a
+parsed number and storing the string. And any config that a library will *parse* later
+(a timezone, a locale, a URL, a cron line) should be parsed at boot: the difference is
+between one clear line at startup and a masked error on whichever page happens to use
+it.

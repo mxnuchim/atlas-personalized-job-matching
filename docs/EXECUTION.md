@@ -1552,3 +1552,30 @@ for.
 
 **Files.** `src/lib/scoring.ts` + test, `src/db/queries/matches.ts`,
 `src/pipeline/scoring/score.ts`
+
+---
+
+## 2026-09-27 20:02 — React 441 on /today and /runs
+
+**Context.** Two pages failed in production with a masked React error; every other page
+was fine, and both returned 200 locally — so the code was right and the environment
+differed.
+
+**Diagnosis.** Only those two pass `env.TZ` into `Intl.DateTimeFormat`
+(`/today` via `nextRunLabel`, `/runs` directly). `/settings` reads `env.TZ` but only
+prints it, which cannot throw. `Intl` rejects anything that is not an IANA zone —
+including a valid name with a stray space — and a throw inside a Server Component
+render is exactly React 441.
+
+**Action.** `withoutBlanks` now stores the trimmed value instead of testing `trim()`
+and keeping the original, and `TZ` is validated against a real `Intl` call at boot, so
+an unusable zone fails at startup with a message rather than at render without one.
+
+**Result.** 342 tests green; lint, typecheck and build clean.
+
+**Still possible, and worth ruling out second.** `/today` and `/runs` are also the only
+two pages that read the `runs` table, which migration 0007 changed. If the fix above
+does not clear it, the migration has not reached Neon — the two hypotheses have the
+same blast radius, and the same fix order regardless.
+
+**Files.** `src/lib/env.ts`, `src/lib/env.test.ts`
