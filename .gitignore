@@ -44,3 +44,9 @@ next-env.d.ts
 
 # Claude Code: project hooks and launch config are committed; personal overrides are not.
 .claude/settings.local.json
+
+# Throwaway measurement scripts and their output. `git add -A` committed one of
+# these once; this makes that impossible rather than requiring vigilance.
+*-tmp.ts
+*-progress.txt
+*-result.txt
