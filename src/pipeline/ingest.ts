@@ -43,6 +43,9 @@ export type IngestSummary = {
   expired: number;
   closed: number;
   reopened: number;
+  /** How many enabled sources answered, out of how many were tried. */
+  sourcesOk: number;
+  sourcesTotal: number;
   results: IngestResult[];
 };
 
@@ -179,6 +182,8 @@ export async function runIngest(): Promise<IngestSummary> {
     expired: results.reduce((total, result) => total + result.expired, 0),
     closed: results.reduce((total, result) => total + result.closed, 0),
     reopened: results.reduce((total, result) => total + result.reopened, 0),
+    sourcesOk: results.filter((result) => !result.error).length,
+    sourcesTotal: results.length,
     results,
   };
   logger.info({ sources: sources.length, ...summary, results: undefined }, "ingest complete");

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { InboxIcon } from "lucide-react";
 
+import { CoverageBanner } from "@/components/coverage-banner";
 import { EmptyState } from "@/components/empty-state";
 import { MatchCard } from "@/components/match-card";
 import { PageHeader } from "@/components/page-header";
@@ -9,6 +10,7 @@ import { StatStrip } from "@/components/stat-strip";
 import { getMatchCounts, listMatchRows } from "@/db/queries/matches";
 import { countJobs } from "@/db/queries/jobs";
 import { getCurrentProfile } from "@/db/queries/profile";
+import { getLastFinishedRun } from "@/db/queries/runs";
 import { env } from "@/lib/env";
 import { nextRunLabel } from "@/lib/schedule";
 
@@ -22,11 +24,12 @@ export const dynamic = "force-dynamic";
 const SHORTLIST = 4;
 
 export default async function TodayPage() {
-  const [counts, top, jobCount, profile] = await Promise.all([
+  const [counts, top, jobCount, profile, lastRun] = await Promise.all([
     getMatchCounts(),
     listMatchRows(SHORTLIST),
     countJobs(),
     getCurrentProfile(),
+    getLastFinishedRun(),
   ]);
 
   const nextRun = nextRunLabel(new Date(), env.TZ);
@@ -37,6 +40,13 @@ export default async function TodayPage() {
   return (
     <div className="space-y-8">
       <PageHeader title="Today" description="Your day's queue at a glance." />
+
+      {/* Before the numbers, not after: a caveat that arrives below the figures it
+          qualifies has already been missed. */}
+      <CoverageBanner
+        sourcesOk={lastRun?.sourcesOk ?? 0}
+        sourcesTotal={lastRun?.sourcesTotal ?? 0}
+      />
 
       <StatStrip
         items={[

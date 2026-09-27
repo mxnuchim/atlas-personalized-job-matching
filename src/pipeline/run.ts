@@ -60,6 +60,8 @@ export async function runPipeline(
       tokensOut: scoring.tokensOut + drafting.tokensOut,
       costUsd: sumCost(scoring.costUsd, drafting.costUsd),
       errors,
+      sourcesOk: ingest.sourcesOk,
+      sourcesTotal: ingest.sourcesTotal,
       status: runStatusFor({
         errors,
         produced: ingest.inserted + scoring.scored + drafting.drafted,
@@ -77,6 +79,8 @@ export async function runPipeline(
       strong: scoring.strong,
       drafted: drafting.drafted,
       errors: errors.length,
+      sourcesOk: ingest.sourcesOk,
+      sourcesTotal: ingest.sourcesTotal,
       costUsd: totals.costUsd,
       status: totals.status,
       appUrl: env.APP_URL,

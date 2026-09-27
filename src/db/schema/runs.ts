@@ -13,6 +13,14 @@ export const runs = pgTable("runs", {
   newJobs: integer().notNull().default(0),
   scored: integer().notNull().default(0),
   drafted: integer().notNull().default(0),
+  /**
+   * Source coverage for the run. Stored as numbers, not inferred from `errors`,
+   * because the question "did this run see the whole market?" has to survive the
+   * source list changing afterwards — and because a run that lost a third of its
+   * boards otherwise looks exactly like a quiet day.
+   */
+  sourcesOk: integer().notNull().default(0),
+  sourcesTotal: integer().notNull().default(0),
   errors: jsonb().$type<RunError[]>().notNull().default([]),
   tokensIn: integer().notNull().default(0),
   tokensOut: integer().notNull().default(0),

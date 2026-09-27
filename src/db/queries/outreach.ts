@@ -4,6 +4,15 @@ import { db } from "@/db";
 import { drafts, jobs, matches, outreach, type Outreach } from "@/db/schema";
 import type { FitTier } from "@/lib/scoring";
 
+// One definition of the funnel and its rules, shared with the client island.
+export {
+  allowedTransitions,
+  canTransition,
+  FUNNEL_ORDER,
+  STAGE_LABEL,
+  STAGE_TOKEN,
+} from "@/lib/outreach";
+
 /** Everything the §11 guardrails need about sending history, in one round trip each. */
 export type SendStats = {
   sentToday: number;
@@ -91,6 +100,41 @@ export async function markReplied(id: string, repliedAt: Date): Promise<void> {
   await db.update(outreach).set({ status: "replied", repliedAt }).where(eq(outreach.id, id));
 }
 
+/**
+ * Move a role to a new stage, stamping whichever timestamp the stage implies so no
+ * caller has to remember. `repliedAt` is set once and never cleared by a later stage —
+ * an interview does not un-happen the reply that produced it.
+ */
+export async function setOutreachStatus(
+  id: string,
+  status: Outreach["status"],
+): Promise<Outreach | null> {
+  const now = new Date();
+  const stamps: Partial<Outreach> = { status };
+  if (status === "replied") stamps.repliedAt = now;
+  if (status === "bounced") stamps.bouncedAt = now;
+  if (status === "sent") stamps.sentAt = now;
+
+  const [row] = await db.update(outreach).set(stamps).where(eq(outreach.id, id)).returning();
+  return row ?? null;
+}
+
+export async function getOutreach(id: string): Promise<Outreach | null> {
+  const [row] = await db.select().from(outreach).where(eq(outreach.id, id)).limit(1);
+  return row ?? null;
+}
+
+/**
+ * Open a row when a draft is written, so a role enters the funnel at `drafted` rather
+ * than materialising at `sent`. Without this the tracker's first column is structurally
+ * always zero, and the drawer has no row to act on until after you have already sent.
+ */
+export async function openOutreach(matchId: string): Promise<void> {
+  const existing = await getOutreachForMatch(matchId);
+  if (existing) return;
+  await db.insert(outreach).values({ matchId, status: "drafted" });
+}
+
 /** The pipeline funnel (PRD §10.3 #5), newest movement first. */
 export type PipelineRow = {
   id: string;
@@ -138,20 +182,6 @@ export async function listPipeline(limit = 200): Promise<PipelineRow[]> {
     recipient,
   }));
 }
-
-/** Funnel counts for the tracker header, in the order the funnel runs. */
-export const FUNNEL_ORDER = [
-  "drafted",
-  "sent",
-  // Sits where it happens — a bounce is a terminal failure of the send itself, not a
-  // later stage of a conversation that started.
-  "bounced",
-  "replied",
-  "interview",
-  "offer",
-  "rejected",
-  "closed",
-] as const;
 
 export async function getFunnelCounts(): Promise<Record<Outreach["status"], number>> {
   const rows = await db

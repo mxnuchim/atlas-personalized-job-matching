@@ -1,7 +1,8 @@
 import "server-only";
 
-import { getUndraftedMatches, insertDraft } from "@/db/queries/drafts";
+import { getUndraftedMatches, hasDraft, insertDraft } from "@/db/queries/drafts";
 import { listMatchRows, type MatchRow } from "@/db/queries/matches";
+import { openOutreach } from "@/db/queries/outreach";
 import { getCurrentProfile, type ProfileWithStrengths } from "@/db/queries/profile";
 import type { RunError } from "@/db/schema";
 import {
@@ -58,14 +59,24 @@ function empty(): DraftSummary {
 export async function runDraft({
   tiers = DEFAULT_TIERS,
   limit = DEFAULT_LIMIT,
-}: { tiers?: FitTier[]; limit?: number } = {}): Promise<DraftSummary> {
+  matchId,
+}: { tiers?: FitTier[]; limit?: number; matchId?: string } = {}): Promise<DraftSummary> {
   const logger = log("draft");
 
   const profile = await getCurrentProfile();
   if (!profile) return { ...empty(), skipped: "No profile seeded — run db:seed:profile" };
 
-  const queue = await getUndraftedMatches(tiers, limit);
-  if (queue.length === 0) return empty();
+  // A single match drafts on demand, ignoring the tier gate: the scheduled run only
+  // drafts `strong`, so a `possible` role you personally rate would otherwise never
+  // get one. The no-double-draft rule still holds.
+  const queue = matchId
+    ? (await hasDraft(matchId))
+      ? []
+      : [{ matchId }]
+    : await getUndraftedMatches(tiers, limit);
+  if (queue.length === 0) {
+    return matchId ? { ...empty(), skipped: "That match already has a draft." } : empty();
+  }
 
   // One fetch for the whole queue rather than a round trip per draft.
   const queued = new Set(queue.map((q) => q.matchId));
@@ -164,6 +175,10 @@ async function draftForMatch(params: {
   });
 
   await insertDraft(row);
+  // A role enters the funnel when a draft exists, not when it is sent — otherwise the
+  // tracker's first column is structurally always zero and the drawer has nothing to
+  // act on until after you have already sent.
+  await openOutreach(row.matchId);
 
   const grounding = draftGrounding(row);
   return {

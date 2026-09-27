@@ -156,6 +156,16 @@ export function canEdit(status: Draft["status"]): boolean {
   return status === "pending";
 }
 
+/** Whether a match already has a draft — the guard for drafting one on demand. */
+export async function hasDraft(matchId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: drafts.id })
+    .from(drafts)
+    .where(eq(drafts.matchId, matchId))
+    .limit(1);
+  return Boolean(row);
+}
+
 export async function insertDraft(row: NewDraft): Promise<void> {
   await db.insert(drafts).values(row);
 }

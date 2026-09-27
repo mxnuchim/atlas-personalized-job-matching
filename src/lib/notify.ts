@@ -24,6 +24,9 @@ export type RunNotification = {
   strong: number;
   drafted: number;
   errors: number;
+  /** Source coverage; a shortfall changes what every other count means. */
+  sourcesOk: number;
+  sourcesTotal: number;
   costUsd: number | null;
   status: "ok" | "partial" | "failed";
   appUrl: string;
@@ -36,10 +39,18 @@ export type RunNotification = {
 export function buildMessage(run: RunNotification): string {
   // `strong` is included so no combination of counts can yield "nothing new"
   // alongside something worth reading.
+  // Coverage qualifies everything after it, so it is stated before any count — a
+  // thin day and a half-failed run produce the same numbers, and only this separates
+  // them.
+  const shortfall =
+    run.sourcesTotal > 0 && run.sourcesOk < run.sourcesTotal
+      ? ` Only ${run.sourcesOk} of ${run.sourcesTotal} sources answered.`
+      : "";
+
   if (run.scored === 0 && run.newJobs === 0 && run.drafted === 0 && run.strong === 0) {
     return run.errors > 0
-      ? `Atlas run finished with ${run.errors} error${run.errors === 1 ? "" : "s"} and nothing new.`
-      : "Atlas ran. Nothing new to review.";
+      ? `Atlas run finished with ${run.errors} error${run.errors === 1 ? "" : "s"} and nothing new.${shortfall}`
+      : `Atlas ran. Nothing new to review.${shortfall}`;
   }
 
   const parts: string[] = [];
@@ -58,7 +69,7 @@ export function buildMessage(run: RunNotification): string {
   if (run.errors > 0) tail.push(`${run.errors} error${run.errors === 1 ? "" : "s"}`);
   if (run.costUsd !== null && run.costUsd > 0) tail.push(`$${run.costUsd.toFixed(3)}`);
 
-  return `Atlas: ${parts.join(", ")}${tail.length > 0 ? ` (${tail.join(", ")})` : ""}. ${run.appUrl}/today`;
+  return `Atlas: ${parts.join(", ")}${tail.length > 0 ? ` (${tail.join(", ")})` : ""}.${shortfall} ${run.appUrl}/today`;
 }
 
 export type WebhookRequest = { body: string; contentType: string };

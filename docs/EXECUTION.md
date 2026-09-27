@@ -1050,3 +1050,55 @@ them; a run that loses a third of its coverage otherwise looks like a quiet day.
 **Result.** 271 tests green; lint, typecheck and build clean.
 
 **Files.** None beyond the previous entry — this records the verification.
+
+---
+
+## 2026-09-27 16:05 — Coverage warnings, the sources screen, and a funnel that moves
+
+**Context.** Four things in one pass: make a degraded run impossible to mistake for a
+quiet day, make sources editable, make outreach reachable past `sent`, give the drawer
+actions. The scoring backfill ran in the background throughout, as a standalone process
+so file edits could not disturb it.
+
+**Degraded coverage.** Source failures were already recorded as run errors, so the gap
+was framing, not capture: Today showed nothing at all. `runs` gains `sources_ok` /
+`sources_total` (migration 0007) — stored as numbers rather than inferred from the
+error list, because the question "did this run see the whole market?" has to survive
+the source list changing afterwards. A `CoverageBanner` sits above the figures it
+qualifies, and renders nothing when coverage was complete. The run notification states
+the shortfall too, since that is the signal you get when you are not looking at the app.
+
+**Sources screen.** `/sources` lists every board with what it has actually produced,
+adds one, and enables or disables it. Config is validated with the *fetchers' own*
+schemas rather than a second copy, so a board saved here is one the fetcher can read —
+a wrong shape caught at save time is a form error; caught at run time it is a silent
+source failure twice a day. Deleting cascades into jobs, matches and drafts, so the
+action re-counts and refuses if the page's number is stale.
+
+**Outreach past `sent`.** The rules moved to `src/lib/outreach.ts`, deliberately
+without `server-only`, so the client island offers exactly the moves the server
+enforces — the same arrangement as `lib/scoring.ts`. `closed` is legal from anywhere
+and `bounced → sent` is legal (fixing an address and resending is repair); everything
+else moves forward only. `runDraft` now opens an outreach row at `drafted`, so the
+funnel's first column is no longer structurally zero.
+
+**Drawer actions.** "Draft this now" ignores the tier gate on purpose — the scheduled
+run only drafts `strong`, so a `possible` role you rate personally would never get one.
+"Not interested" records `closed` rather than adding a dismissal flag beside the
+funnel: one state machine per match is easier to reason about than two.
+
+**Result.** 283 tests green; lint, typecheck and build clean. Verified by rendering:
+`/sources` reports 66/66 enabled and 2,241 open postings, `/pipeline` shows Drafted 7
+with a working stage control on every row.
+
+Two things the render caught. The sources screen labelled four empty boards "Producing
+nothing — check the board token", which asserts a cause it cannot know: Hootsuite,
+Jumia, Luno and Wise all return postings that the relevance gate rejects. Relabelled
+"Holding nothing — filtered out, or a wrong token". And the seven existing drafts
+predated outreach rows, so the tracker was empty; backfilled at `drafted`.
+
+**Files.** `src/lib/outreach.ts`, `src/components/{coverage-banner,pipeline-tracker,sources-manager,match-drawer}.tsx`,
+`src/app/(app)/{sources/page.tsx,sources/actions.ts,pipeline/page.tsx,pipeline/actions.ts,matches/actions.ts,today/page.tsx,runs/page.tsx}`,
+`src/db/queries/{sources,outreach,drafts,runs}.ts`, `src/db/queries/outreach.test.ts`,
+`src/db/schema/runs.ts`, `src/pipeline/{ingest,run}.ts`, `src/pipeline/drafting/draft.ts`,
+`src/lib/notify.ts`, `src/components/app-nav.tsx`, `drizzle/0007_useful_spitfire.sql`

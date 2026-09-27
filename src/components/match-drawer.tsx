@@ -1,7 +1,11 @@
 "use client";
 
-import { AlertTriangleIcon, ExternalLinkIcon, XIcon } from "lucide-react";
+import { useTransition } from "react";
+import { AlertTriangleIcon, ExternalLinkIcon, PenLineIcon, XCircleIcon, XIcon } from "lucide-react";
 import { Dialog } from "radix-ui";
+import { toast } from "sonner";
+
+import { dismissMatchAction, draftMatchAction } from "@/app/(app)/matches/actions";
 
 import { FitGauge } from "@/components/fit-gauge";
 import { TierChip } from "@/components/tier-chip";
@@ -197,19 +201,25 @@ function DrawerBody({
         </section>
       </div>
 
-      <footer className="flex items-center justify-between gap-4 border-t px-6 py-4">
-        <span className="text-muted-foreground text-xs">
-          Scored {match.scoredAtLabel} · {match.model}
-        </span>
-        <a
-          href={match.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-primary-ink focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
-        >
-          Open original
-          <ExternalLinkIcon className="size-3.5" />
-        </a>
+      <footer className="space-y-3 border-t px-6 py-4">
+        {/* A closed role gets no actions — offering to draft for a posting that is
+            gone is worse than offering nothing. */}
+        {!match.closed && <DrawerActions matchId={match.id} />}
+
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-muted-foreground text-xs">
+            Scored {match.scoredAtLabel} · {match.model}
+          </span>
+          <a
+            href={match.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary-ink focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
+          >
+            Open original
+            <ExternalLinkIcon className="size-3.5" />
+          </a>
+        </div>
       </footer>
     </>
   );
@@ -228,5 +238,48 @@ function Meter({ value, className }: { value: number; className?: string }) {
         style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
       />
     </span>
+  );
+}
+
+/**
+ * What you can do about a match you have just read.
+ *
+ * "Draft this now" ignores the tier gate on purpose: the scheduled run only drafts
+ * `strong`, so a `possible` role you personally rate would otherwise never get one.
+ */
+function DrawerActions({ matchId }: { matchId: string }) {
+  const [pending, startTransition] = useTransition();
+
+  function run(action: typeof draftMatchAction, working: string) {
+    startTransition(async () => {
+      const id = toast.loading(working);
+      const result = await action({ matchId });
+      toast.dismiss(id);
+      if (result.ok) toast.success(result.message ?? "Done.");
+      else toast.error(result.error);
+    });
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => run(draftMatchAction, "Writing a draft…")}
+        className="bg-primary text-primary-foreground focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+      >
+        <PenLineIcon className="size-4" />
+        Draft this now
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => run(dismissMatchAction, "Closing…")}
+        className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+      >
+        <XCircleIcon className="size-4" />
+        Not interested
+      </button>
+    </div>
   );
 }

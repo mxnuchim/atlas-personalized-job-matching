@@ -805,3 +805,46 @@ Node 22 (`.github/workflows/ci.yml`), so this was local only.
 **Rule.** When a green suite fails on no change, check the interpreter before the code.
 And if a toolchain error names a builtin that should always exist, it is a runtime
 version problem, not a bug.
+
+---
+
+## 2026-09-27 16:05 — A shared rule must live where both sides can import it
+
+**Problem.** The pipeline tracker is a client island and needed `allowedTransitions` so
+it could offer only legal moves. Importing it from `@/db/queries/outreach` type-checked
+cleanly and would have failed the build — that module imports `@/db`, which reaches
+`server-only`.
+
+**Root cause.** `tsc` has no idea what `server-only` means; it is a runtime/bundler
+boundary. So the error surfaces at `next build`, well after the code looks correct.
+
+**Fix.** The rules moved to `src/lib/outreach.ts` with no `server-only`, and the query
+module re-exports them, so there is still one definition. The status type comes in via
+`import type`, which is erased, so nothing from `@/db` reaches the browser bundle. The
+codebase already had this pattern in `lib/scoring.ts` — worth looking for the existing
+answer before inventing one.
+
+**Rule.** When the server enforces a rule and the client renders from it, the rule
+belongs in a module neither owns. Sharing it from the server module is a build error
+waiting to happen; copying it into the client is a divergence waiting to happen.
+
+---
+
+## 2026-09-27 16:05 — Do not label a symptom with a cause you have not established
+
+**Problem.** The sources screen shipped a stat reading "Producing nothing — check the
+board token" over four boards. All four tokens were correct.
+
+**Root cause.** Hootsuite, Jumia, Luno and Wise return postings; the relevance gate
+rejects all of them. The count was right, the diagnosis attached to it was invented. It
+is the more harmful kind of wrong, because it sends you to fix something that is not
+broken.
+
+**Fix.** "Holding nothing — filtered out, or a wrong token". The number is what is
+known; the causes are named as possibilities because the screen cannot distinguish
+them.
+
+**Rule.** UI copy that explains *why* is an assertion, and it needs the same evidence
+as any other. When a signal has several causes and you cannot tell which, say the
+signal and list the causes — a confident wrong explanation costs more than an honest
+ambiguous one.

@@ -9,6 +9,8 @@ function run(overrides: Partial<RunNotification> = {}): RunNotification {
     strong: 0,
     drafted: 0,
     errors: 0,
+    sourcesOk: 10,
+    sourcesTotal: 10,
     costUsd: 0,
     status: "ok",
     appUrl: "https://atlas.test",
@@ -58,6 +60,30 @@ describe("buildMessage", () => {
     [2, "2 strong matches,"],
   ])("pluralises for %i", (strong, expected) => {
     expect(buildMessage(run({ scored: 5, strong, drafted: 1 }))).toContain(expected);
+  });
+});
+
+describe("buildMessage — source coverage", () => {
+  it("says so when the run did not reach every source", () => {
+    // Fewer matches is exactly what a quiet day looks like, so the shortfall has to
+    // be stated or the two are indistinguishable.
+    const message = buildMessage(run({ strong: 2, sourcesOk: 46, sourcesTotal: 66 }));
+    expect(message).toContain("Only 46 of 66 sources answered");
+  });
+
+  it("says nothing when coverage was complete", () => {
+    expect(buildMessage(run({ strong: 2 }))).not.toContain("sources answered");
+  });
+
+  it("still flags a shortfall on an otherwise empty run", () => {
+    // The most dangerous combination: nothing found *and* half the boards silent.
+    const message = buildMessage(run({ sourcesOk: 1, sourcesTotal: 66 }));
+    expect(message).toContain("Nothing new to review");
+    expect(message).toContain("Only 1 of 66 sources answered");
+  });
+
+  it("does not claim a shortfall before any run has recorded coverage", () => {
+    expect(buildMessage(run({ sourcesOk: 0, sourcesTotal: 0 }))).not.toContain("sources answered");
   });
 });
 

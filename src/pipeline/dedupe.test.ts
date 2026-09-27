@@ -34,7 +34,10 @@ describe("collapseRoles", () => {
     // id, which the unique index stores as a *new* job — breeding the duplicates the
     // collapse is meant to remove.
     const forward = collapseRoles([variant({ externalId: "300" }), variant({ externalId: "100" })]);
-    const reversed = collapseRoles([variant({ externalId: "100" }), variant({ externalId: "300" })]);
+    const reversed = collapseRoles([
+      variant({ externalId: "100" }),
+      variant({ externalId: "300" }),
+    ]);
 
     expect(forward[0].externalId).toBe("100");
     expect(reversed[0].externalId).toBe("100");

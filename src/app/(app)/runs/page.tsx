@@ -86,7 +86,14 @@ export default async function RunsPage() {
                   )}
                 </div>
 
-                <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-6">
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-7">
+                  {/* First, because every other number on this row is bounded by it:
+                      a run that reached half its boards saw half the market. */}
+                  <Stat
+                    label="Sources"
+                    value={run.sourcesTotal > 0 ? `${run.sourcesOk}/${run.sourcesTotal}` : "—"}
+                    alert={run.sourcesTotal > 0 && run.sourcesOk < run.sourcesTotal}
+                  />
                   <Stat label="Seen" value={run.jobsSeen} />
                   <Stat label="New" value={run.newJobs} />
                   <Stat label="Scored" value={run.scored} />
@@ -122,11 +129,22 @@ export default async function RunsPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number | string }) {
+function Stat({
+  label,
+  value,
+  alert = false,
+}: {
+  label: string;
+  value: number | string;
+  /** Colours the figure when it is the thing that went wrong, not just a number. */
+  alert?: boolean;
+}) {
   return (
     <div>
       <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd className={cn("text-sm tabular-nums")}>{value}</dd>
+      <dd className={cn("text-sm tabular-nums", alert && "text-destructive font-medium")}>
+        {value}
+      </dd>
     </div>
   );
 }

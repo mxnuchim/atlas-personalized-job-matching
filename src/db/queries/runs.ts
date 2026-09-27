@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, isNotNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { runs, type Run, type RunError } from "@/db/schema";
@@ -26,6 +26,9 @@ export type RunTotals = {
   /** `null` when any model used had no published price — unknown, not free. */
   costUsd: number | null;
   errors: RunError[];
+  /** Source coverage — see the column comment on `runs`. */
+  sourcesOk: number;
+  sourcesTotal: number;
   status: RunStatus;
 };
 
@@ -43,6 +46,8 @@ export async function finishRun(id: string, totals: RunTotals): Promise<void> {
       // numeric(10,4) is carried as a string by the driver to avoid float drift.
       costUsd: totals.costUsd === null ? "0" : totals.costUsd.toFixed(4),
       errors: totals.errors,
+      sourcesOk: totals.sourcesOk,
+      sourcesTotal: totals.sourcesTotal,
       status: totals.status,
     })
     .where(eq(runs.id, id));
@@ -71,4 +76,18 @@ export async function listRuns(limit = 50): Promise<Run[]> {
 export function runStatusFor(params: { errors: RunError[]; produced: number }): RunStatus {
   if (params.errors.length === 0) return "ok";
   return params.produced > 0 ? "partial" : "failed";
+}
+
+/**
+ * The most recent finished run, for the coverage banner. A run still in flight is not
+ * evidence of anything yet, so it is skipped rather than reported as zero coverage.
+ */
+export async function getLastFinishedRun(): Promise<Run | null> {
+  const [row] = await db
+    .select()
+    .from(runs)
+    .where(isNotNull(runs.finishedAt))
+    .orderBy(desc(runs.finishedAt))
+    .limit(1);
+  return row ?? null;
 }

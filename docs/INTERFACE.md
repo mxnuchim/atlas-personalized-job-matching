@@ -276,6 +276,26 @@ Breadth is a data problem, not a UI one, but it decides what every screen can sh
 
 ---
 
+## 9b. Reporting a run honestly
+
+- **State coverage before any count.** A run that lost a third of its boards produces
+  fewer matches, and fewer matches is exactly what a genuinely quiet day looks like.
+  `CoverageBanner` sits *above* the figures it qualifies — a caveat placed under the
+  numbers has already been missed — and renders nothing when coverage was complete, so
+  it keeps its meaning.
+- **A shared rule lives in `lib/`, not in a query module.** The outreach state machine
+  is in `src/lib/outreach.ts` without `server-only`, so the client island offers exactly
+  the moves the server enforces. Importing it from `@/db/queries/*` type-checks and
+  fails the build. Same arrangement as `lib/scoring.ts`.
+- **Never label a symptom with an unestablished cause.** A count is evidence; the reason
+  for it usually is not. When a signal has several possible causes and the screen cannot
+  distinguish them, name the signal and list the causes.
+- **A destructive control states what it destroys.** Deleting a source cascades into
+  jobs, matches and drafts — invisible from the button — so the confirmation carries the
+  row count and the action re-counts server-side and refuses a stale number.
+
+---
+
 ## 10. Component inventory
 
 | Component | Kind | Notes |
