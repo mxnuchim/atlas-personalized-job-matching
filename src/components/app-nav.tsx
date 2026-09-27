@@ -15,6 +15,7 @@ const NAV = [
   { href: "/pipeline", label: "Pipeline" },
   { href: "/sources", label: "Sources" },
   { href: "/runs", label: "Runs" },
+  { href: "/profile", label: "Profile" },
   { href: "/settings", label: "Settings" },
 ] as const;
 

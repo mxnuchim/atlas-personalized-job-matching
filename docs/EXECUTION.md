@@ -1463,3 +1463,50 @@ correct. Collapsed into `openOwnedOutreach`, where the scoping *is* the query.
 **Files.** `src/db/queries/{drafts,outreach}.ts`, `src/lib/session.ts`,
 `src/lib/authorization.test.ts`, `src/app/(app)/{review,pipeline,matches}/actions.ts`,
 `src/app/(app)/{pipeline,review}/page.tsx`
+
+---
+
+## 2026-09-27 19:30 — Signup, the profile builder, and the avatar picker
+
+**Context.** The user's objection was right and worth quoting: *"Why tf are we seeding
+a profile? Let them sign up!"* The data shape was never wrong; its only source was a
+JSON file on one laptop, which meant no signup, no form, no validation, and no empty
+state. Adding one person exposed all four absences at once.
+
+**Action.**
+
+*The contract moved.* `src/lib/profile-document.ts` holds the schema the seed script
+used to keep private, plus `CV_PROMPT` — the prompt you paste into an LLM with your
+CV. The same document now has two sources: a file, or a person's clipboard.
+
+*Profile builder* at `/profile`. Copy the prompt, paste the JSON back, and it is
+checked before it is saved: schema errors phrased for someone who pasted LLM output,
+warnings for evidence pointing at strengths that do not exist, and a preview of every
+strength with its evidence count. Two steps on purpose — checking is free, saving
+replaces everything.
+
+*Editing in place does not re-score.* `saveProfileDocument` keeps the profile's id by
+default, so existing matches stay valid; a new version is an explicit checkbox that
+says what it costs. Fixing a typo in a headline must not re-score 2,300 postings.
+
+*Signup*, gated. *Avatar picker* on the login screen, with initials on a name-derived
+colour as the normal case rather than a fallback — the same fill-versus-ink split as
+the tier chips, so they clear 4.5:1 in both themes.
+
+**The gate changed shape mid-build.** It started as an invite code; the user asked why
+it existed. The reason is real — a public URL where every account spends the owner's
+model budget — but the code was the wrong form of it. For two known people it is a
+secret to generate, share, and remember to revoke, protecting against nobody in
+particular. `SIGNUP_ALLOWED_EMAILS` names the two addresses instead: nothing to
+forward, nothing to leak, one fewer field in the form, and self-documenting.
+
+**Result.** 333 tests green; lint, typecheck and build clean. Verified by rendering:
+`/login` shows the picker, `/signup` correctly reports closed with no allowlist set,
+`/profile` shows the current profile and its strengths.
+
+`db:seed:profile` is now a dev shortcut, not the only way in.
+
+**Files.** `src/lib/{profile-document,signup-allowlist,signup-allowlist.test,env}.ts`,
+`src/db/queries/{profile,users}.ts`, `src/components/{avatar,avatar.test,profile-importer}.tsx`,
+`src/app/signup/*`, `src/app/login/{page,login-form}.tsx`,
+`src/app/(app)/profile/*`, `src/components/app-nav.tsx`, `.env.example`, `docs/DEPLOY.md`

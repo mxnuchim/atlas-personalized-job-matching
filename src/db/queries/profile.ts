@@ -1,6 +1,7 @@
 import { desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
+import type { ProfileDocument } from "@/lib/profile-document";
 import {
   evidence,
   profile,
@@ -75,4 +76,95 @@ export async function listProfileOwners(): Promise<
 export async function getProfileById(profileId: string): Promise<Profile | null> {
   const [row] = await db.select().from(profile).where(eq(profile.id, profileId)).limit(1);
   return row ?? null;
+}
+
+/**
+ * Write a profile document for a user.
+ *
+ * Two modes, and the difference is money:
+ *
+ *   - **In place** (default): the profile row keeps its id, so every existing match
+ *     stays valid. Fixing a typo in a headline must not cost a re-score of 2,300 jobs.
+ *   - **New version**: a new profile row, which means a new id, which means nothing is
+ *     scored against it yet — the next run re-scores everything. That is the right
+ *     behaviour when positioning genuinely changed, and the wrong default.
+ *
+ * Strengths and their evidence are replaced wholesale rather than diffed: the document
+ * is the source of truth, and a partial merge would leave a strength the user deleted
+ * still influencing their scores.
+ */
+export async function saveProfileDocument(
+  userId: string,
+  doc: ProfileDocument,
+  options: { newVersion?: boolean } = {},
+): Promise<{ profileId: string; version: number; rescored: boolean }> {
+  const p = doc.profile;
+
+  return db.transaction(async (tx) => {
+    const [latest] = await tx
+      .select({ id: profile.id, version: profile.version })
+      .from(profile)
+      .where(eq(profile.userId, userId))
+      .orderBy(desc(profile.version))
+      .limit(1);
+
+    const createNew = !latest || options.newVersion === true;
+    const version = latest ? (createNew ? latest.version + 1 : latest.version) : 1;
+
+    const values = {
+      userId,
+      version,
+      headline: p.headline,
+      name: p.name ?? null,
+      portfolioUrl: p.portfolio_url ?? null,
+      targetRoles: p.target_roles,
+      seniority: p.seniority ?? null,
+      locations: p.locations,
+      relocation: p.relocation,
+      dealbreakers: p.dealbreakers,
+      cvText: p.cv_text ?? null,
+    };
+
+    let profileId: string;
+    if (createNew) {
+      const [row] = await tx.insert(profile).values(values).returning({ id: profile.id });
+      profileId = row.id;
+    } else {
+      await tx.update(profile).set(values).where(eq(profile.id, latest.id));
+      profileId = latest.id;
+    }
+
+    // Replaced, not merged — a strength the user removed must stop counting.
+    await tx.delete(strengths).where(eq(strengths.profileId, profileId));
+
+    const inserted = await tx
+      .insert(strengths)
+      .values(
+        doc.strengths.map((st) => ({
+          profileId,
+          key: st.key,
+          label: st.label,
+          kind: st.kind,
+          weight: st.weight,
+          summary: st.summary ?? null,
+        })),
+      )
+      .returning({ id: strengths.id, key: strengths.key });
+
+    const idByKey = new Map(inserted.map((st) => [st.key, st.id]));
+    // Evidence pointing at a strength that does not exist is dropped, which the
+    // importer warns about before saving rather than discovering here.
+    const rows = doc.evidence
+      .filter((e) => idByKey.has(e.strength_key))
+      .map((e) => ({
+        strengthId: idByKey.get(e.strength_key)!,
+        claim: e.claim,
+        context: e.context ?? null,
+        metric: e.metric ?? null,
+        source: e.source ?? null,
+      }));
+    if (rows.length > 0) await tx.insert(evidence).values(rows);
+
+    return { profileId, version, rescored: createNew && Boolean(latest) };
+  });
 }

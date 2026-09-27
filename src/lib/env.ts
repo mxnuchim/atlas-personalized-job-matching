@@ -72,6 +72,20 @@ const envSchema = z.object({
   MAX_POSTING_AGE_DAYS: z.coerce.number().int().min(1).max(365).default(30),
 
   /**
+   * Who may create an account. Comma-separated emails; signup is closed while unset.
+   *
+   * A gate is needed because Atlas runs at a public URL and every account spends the
+   * owner's model budget — an open form is a funded denial of wallet.
+   *
+   * An allowlist rather than an invite code, because for a tool with two known users
+   * the code is worse in every way: a secret to generate, share over some channel,
+   * and remember to revoke, protecting against nobody in particular. Naming the two
+   * addresses is self-documenting, cannot be forwarded to a stranger, and needs no
+   * extra field in the form.
+   */
+  SIGNUP_ALLOWED_EMAILS: z.string().optional(),
+
+  /**
    * Triggering a run from the app.
    *
    * A pipeline run is ~12 minutes, far past any serverless ceiling, so in production

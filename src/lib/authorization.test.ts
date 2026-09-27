@@ -22,13 +22,22 @@ const SRC = join(process.cwd(), "src");
 /** Fetchers that take an id and no owner. Safe inside the pipeline, never in an action. */
 const UNSCOPED_FETCHERS = ["getDraft", "getOutreach", "getOutreachForMatch"];
 
-/** Actions that legitimately touch nothing a user owns. */
-const NOT_USER_SCOPED = new Set([
-  join("app", "(app)", "actions.ts"), // sign out
-  join("app", "(app)", "sources", "actions.ts"), // sources are shared by everyone
-  join("app", "(app)", "today", "actions.ts"), // triggers a run; owns no row
-  join("app", "login", "actions.ts"), // pre-auth by definition
-]);
+/**
+ * Actions that never take a row id from the caller, and so cannot reach across users.
+ *
+ * Each needs a reason, not just a path. An exemption list without reasons is how a
+ * guard gets hollowed out one "just this once" at a time — and the reason is what a
+ * reviewer checks when the file changes.
+ */
+const NOT_USER_SCOPED: Record<string, string> = {
+  [join("app", "(app)", "actions.ts")]: "sign out — touches no row",
+  [join("app", "(app)", "sources", "actions.ts")]: "sources are shared by every user",
+  [join("app", "(app)", "today", "actions.ts")]: "triggers a run; owns no row",
+  [join("app", "(app)", "profile", "actions.ts")]:
+    "writes only the session user's own profile, via session.user.id — it accepts no row id",
+  [join("app", "login", "actions.ts")]: "pre-auth by definition",
+  [join("app", "signup", "actions.ts")]: "pre-auth by definition",
+};
 
 function actionFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -46,10 +55,20 @@ describe("server actions cannot reach another user's rows", () => {
     expect(files.length).toBeGreaterThanOrEqual(5);
   });
 
+  it("every exemption names a file that exists", () => {
+    // A stale exemption silently excuses a file that was renamed into scope.
+    for (const rel of Object.keys(NOT_USER_SCOPED)) {
+      expect(
+        files.map((f) => relative(SRC, f)),
+        rel,
+      ).toContain(rel);
+    }
+  });
+
   it.each(
     actionFiles(join(SRC, "app"))
       .map((f) => relative(SRC, f))
-      .filter((rel) => !NOT_USER_SCOPED.has(rel)),
+      .filter((rel) => !(rel in NOT_USER_SCOPED)),
   )("%s establishes the acting profile", (rel) => {
     const contents = readFileSync(join(SRC, rel), "utf8");
     expect(contents).toContain("actingProfileId");

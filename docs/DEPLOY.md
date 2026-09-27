@@ -47,6 +47,12 @@ npm run db:seed:sources  # the 66-source catalogue
 `db:seed:profile` fails with a clear message rather than attaching to "the only user",
 which stops being a meaningful phrase the moment a second person exists.
 
+**`db:seed:profile` is now optional.** It predates the app being able to create a
+profile and is kept as a dev shortcut. The supported path is: set
+`SIGNUP_ALLOWED_EMAILS`, sign up, and build the profile on `/profile` — paste your CV into
+an LLM with the prompt that screen gives you, paste the answer back. Nobody should have
+to edit a JSON file on someone else's laptop to use this.
+
 Nothing runs migrations automatically. That is deliberate — a migration that runs on
 every deploy is a migration that runs during a rollback.
 
@@ -72,6 +78,7 @@ Set these in **Settings → Environment Variables**:
 | `DAILY_QUEUE_SIZE` | `20` | 5–30 |
 | `MAX_PER_COMPANY` | `4` | |
 | `MAX_POSTING_AGE_DAYS` | `30` | |
+| `SIGNUP_ALLOWED_EMAILS` | `you@x.com,her@y.com` | **Signups are closed while unset.** Only these addresses may register |
 
 **Do not set `SKIP_ENV_VALIDATION`.** It substitutes a placeholder database URL so CI
 can build without secrets; in production it would let the app boot pointed at nothing.
