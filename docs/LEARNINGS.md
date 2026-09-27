@@ -1197,3 +1197,25 @@ Dependabot/Codespaces tabs).
 boundary — CI into a process, dashboard into a runtime — validate it on the far side
 *and* check it on the near side, where you can still say which settings page to open.
 The inner check keeps the program correct; the outer one keeps the person unblocked.
+
+---
+
+## 2026-09-27 21:05 — "No errors" is not the same as "it worked"
+
+**Problem.** A scheduled run read zero job boards, spent nothing, found nothing, and
+recorded `status: ok` with a green tick.
+
+**Root cause.** Status was derived purely from whether anything threw:
+`errors.length === 0 → ok`. Doing no work raises no errors, so a completely
+unconfigured run and a genuinely quiet day produce identical output. The one place that
+costs most is the unattended schedule — the whole point of which is that nobody is
+looking.
+
+**Fix.** Assert the run's *preconditions*, not just the absence of exceptions. Zero
+sources read is a failure regardless of how smoothly it happened, and the message names
+the command that fixes it.
+
+**Rule.** For anything that runs unattended, decide what a *successful* run must be true
+of and check that, rather than reporting success by default and failure on exception.
+"Nothing went wrong" is the weakest possible definition of working, and it is the one a
+try/catch gives you for free — which is exactly why it is so often the one that ships.

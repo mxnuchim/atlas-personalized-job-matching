@@ -1694,3 +1694,34 @@ run under a plain shell.
 **Result.** Failure now reads as one error line plus where to fix it.
 
 **Files.** `.github/workflows/pipeline.yml`
+
+---
+
+## 2026-09-27 21:05 — A run that did nothing reported success
+
+**Context.** The first Actions run that got past configuration finished in three
+seconds with `sources 0/0`, everything zero, `status: ok`, and a green tick. The Neon
+database has no `sources` rows — `db:seed:sources` was never run against it.
+
+**The bug is the green tick, not the empty database.** `runStatusFor` returns `ok`
+whenever there are no errors, and reading zero boards produced no errors. So an
+unconfigured run is indistinguishable from a quiet day — which matters most for the
+scheduled run, because nobody watches it. A green tick every morning on a database with
+no sources is the worst available outcome: it looks like the system is working.
+
+**Action.** `configurationErrors(ingest)` reports faults that mean the run could not
+have worked whatever it said: no enabled sources at all (with the command that fixes
+it), or every source resting. Returned as errors so the existing status logic turns
+them into `failed` without inventing a second concept, and so they appear on the Runs
+screen with everything else. Five tests, including the two cases that must stay silent
+— a genuinely quiet day, and sources that failed, which is already an error elsewhere.
+
+The Actions summary now prints `❌ none read — is the catalogue seeded?` for `0/0`
+rather than a tidy-looking row, since the fix differs from a partial shortfall.
+
+Also bumped `actions/checkout` and `actions/setup-node` to v5; v4 targets the
+now-deprecated Node 20.
+
+**Result.** 357 tests green; lint, typecheck clean.
+
+**Files.** `src/pipeline/{run.ts,run.test.ts,cli.ts}`, `.github/workflows/pipeline.yml`

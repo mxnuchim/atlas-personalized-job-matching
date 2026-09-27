@@ -67,6 +67,8 @@ export async function runPipeline(
     const drafting = mergeDrafting(perUser.map((p) => p.drafting));
 
     const errors: RunError[] = [
+      // First: a run with nothing to read is misconfigured, not quiet.
+      ...configurationErrors(ingest),
       ...ingest.results
         .filter((r) => r.error)
         .map((r) => ({ stage: "ingest", message: `${r.source}: ${r.error}` })),
@@ -214,4 +216,35 @@ function mergeDrafting(parts: DraftSummary[]): DraftSummary {
     if (part.skipped && !merged.skipped) merged.skipped = part.skipped;
   }
   return merged;
+}
+
+/**
+ * Faults that mean the run could not have worked, whatever it reported.
+ *
+ * A run that read zero boards finished in three seconds, spent nothing, found nothing,
+ * and recorded `ok` — indistinguishable from a genuinely quiet day. It was not quiet;
+ * it was unconfigured. The difference matters most for the scheduled run, which nobody
+ * watches: a green tick every morning while the database has no sources is the worst
+ * possible outcome, because it looks like the system is working.
+ *
+ * Reported as errors so the existing status logic turns them into `failed` without a
+ * second concept, and so they land on the Runs screen with everything else.
+ */
+export function configurationErrors(ingest: IngestSummary): RunError[] {
+  const errors: RunError[] = [];
+
+  if (ingest.sourcesTotal === 0 && ingest.sourcesResting === 0) {
+    errors.push({
+      stage: "ingest",
+      message:
+        "No enabled sources — this run read nothing. Seed the catalogue with `npm run db:seed:sources`.",
+    });
+  } else if (ingest.sourcesTotal === 0) {
+    errors.push({
+      stage: "ingest",
+      message: `Every source is resting (${ingest.sourcesResting}) — nothing was read.`,
+    });
+  }
+
+  return errors;
 }

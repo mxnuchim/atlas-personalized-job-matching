@@ -46,10 +46,15 @@ async function main() {
   // opening the app.
   if (process.env.GITHUB_STEP_SUMMARY) {
     const { appendFileSync } = await import("node:fs");
+    // `0/0` is the dangerous one: it reads as a tidy row and means the run had
+    // nothing to read at all. Called out separately from a partial shortfall, because
+    // the fix is different — seed the catalogue, rather than wait for a board to recover.
     const coverage =
-      ingest.sourcesOk < ingest.sourcesTotal
-        ? `| **sources** | ⚠️ ${ingest.sourcesOk}/${ingest.sourcesTotal} answered |\n`
-        : `| sources | ${ingest.sourcesOk}/${ingest.sourcesTotal} |\n`;
+      ingest.sourcesTotal === 0
+        ? `| **sources** | ❌ none read — is the catalogue seeded? |\n`
+        : ingest.sourcesOk < ingest.sourcesTotal
+          ? `| **sources** | ⚠️ ${ingest.sourcesOk}/${ingest.sourcesTotal} answered |\n`
+          : `| sources | ${ingest.sourcesOk}/${ingest.sourcesTotal} |\n`;
 
     appendFileSync(
       process.env.GITHUB_STEP_SUMMARY,
