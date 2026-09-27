@@ -1144,3 +1144,32 @@ Ownership means "you set this up", which is true of exactly one person.
 **Rule.** When adding an authorisation check, verify the distinction it depends on can
 actually be false. A permission everyone holds is not a permission, and it is worse
 than none — it reads as protection to the next person who looks.
+
+---
+
+## 2026-09-27 20:35 — Ask the system what it has, before reasoning about what it should have
+
+**Problem.** Three pages failed in production with the same masked error over one
+evening, and each was diagnosed separately: which columns does this page touch, what
+could throw here, what is unique to these two screens. Careful reasoning, repeated
+three times, about one cause.
+
+**Root cause.** React error 441 strips the real message in production, so there was no
+error text to anchor on — and I substituted deduction for a measurement I could have
+taken in thirty seconds. The database knew exactly which migrations it had. I never
+asked it. Instead I built a hypothesis from the *code*, which is the one side of the
+comparison that was never in doubt.
+
+The `TZ` theory was the clearest example: it fit the evidence precisely, it identified
+a genuine bug, and it was not the cause. A hypothesis that explains the symptom is not
+the same as the explanation.
+
+**Fix.** `npm run db:status`, which prints applied-versus-expected for any database.
+Thirty seconds of work, and it ends the entire class of question.
+
+**Rule.** When an error is masked, the first move is to make the *state* observable, not
+to reason harder about the code. Anywhere two systems must agree — schema and
+migrations, deployed commit and local, env contract and env set — build the one command
+that compares them and run it before forming a theory. Reasoning from one side of a
+mismatch will always produce a plausible answer, and plausible is exactly what makes it
+expensive.

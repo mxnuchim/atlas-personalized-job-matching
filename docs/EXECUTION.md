@@ -1629,3 +1629,37 @@ OK, failing, resting, or off and by whom.
 `src/db/queries/{sources,users}.ts`, `src/pipeline/{source-health,source-health.test,ingest}.ts`,
 `src/app/(app)/sources/{page.tsx,actions.ts}`, `src/components/sources-manager.tsx`,
 `drizzle/0009_source_health.sql`, `.github/workflows/pipeline.yml`, `docs/DEPLOY.md`
+
+---
+
+## 2026-09-27 20:35 — db:status, after diagnosing the same bug three times
+
+**Context.** Three pages failed in production with React error 441 across one evening:
+`/today`, `/runs`, then `/sources`. Each was investigated as a separate problem.
+
+**They were one problem.** Every failing page referenced a column from a migration the
+Neon database had never received:
+
+| page | column | migration |
+|---|---|---|
+| `/runs`, `/today` | `runs.sources_ok` | 0007 |
+| `/today`, `/matches` | `matches.profile_id` | 0008 |
+| `/sources` | `sources.disabled_by` | 0009 |
+
+`/sources` only began failing *after* 0009 shipped — which is the tell. The symptom
+tracks the code, not the database: a page breaks the moment its query mentions a column
+that is not there, so an unapplied migration presents as an unrelated mystery per
+screen.
+
+**Action.** `npm run db:status` lists every migration on disk and whether a given
+database has it. Read-only, its own connection, no `server-only` modules, so it is safe
+to point at production. `DEPLOY.md` now names it as the first thing to run when a
+deployed page fails, and the troubleshooting section says what 441 actually means.
+
+**Not wasted.** The `TZ` → `APP_TZ` rename and the untrimmed-env bug found along the
+way were both real, and `Intl` genuinely does throw on a padded zone. They were just
+not *this*.
+
+**Result.** 352 tests green; lint and typecheck clean.
+
+**Files.** `src/db/status.ts`, `package.json`, `README.md`, `docs/DEPLOY.md`
