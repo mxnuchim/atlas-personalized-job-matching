@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { canTransition, getOutreach, setOutreachStatus } from "@/db/queries/outreach";
+import { canTransition, getOwnedOutreach, setOutreachStatus } from "@/db/queries/outreach";
 import { log } from "@/lib/logger";
-import { requireSession } from "@/lib/session";
+import { actingProfileId } from "@/lib/session";
 
 /**
  * Pipeline mutations (PRD §6: mutations are Server Actions). Session-checked
@@ -36,12 +36,13 @@ const schema = z.object({
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
 export async function setOutreachStatusAction(input: unknown): Promise<ActionResult> {
-  await requireSession();
+  const acting = await actingProfileId();
+  if (!acting.ok) return { ok: false, error: acting.error };
 
   const parsed = schema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "That is not a valid stage." };
 
-  const existing = await getOutreach(parsed.data.outreachId);
+  const existing = await getOwnedOutreach(parsed.data.outreachId, acting.profileId);
   if (!existing) return { ok: false, error: "That role is no longer in the pipeline." };
 
   if (!canTransition(existing.status, parsed.data.status)) {

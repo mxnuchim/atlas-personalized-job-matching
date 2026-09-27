@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { getOutreachForMatch, openOutreach, setOutreachStatus } from "@/db/queries/outreach";
+import { openOwnedOutreach, ownsMatch, setOutreachStatus } from "@/db/queries/outreach";
 import { log } from "@/lib/logger";
-import { requireSession } from "@/lib/session";
+import { actingProfileId, requireSession } from "@/lib/session";
 import { runDraft } from "@/pipeline/drafting/draft";
 
 /**
@@ -24,9 +24,18 @@ export type ActionResult = { ok: true; message?: string } | { ok: false; error: 
 /** Draft this role now, regardless of tier. */
 export async function draftMatchAction(input: unknown): Promise<ActionResult> {
   const session = await requireSession();
+  const acting = await actingProfileId();
+  if (!acting.ok) return { ok: false, error: acting.error };
 
   const parsed = matchSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "That match reference is not valid." };
+
+  // `runDraft` already scopes to this user's matches, so an id belonging to someone
+  // else would produce nothing. Checking here anyway makes the refusal explicit and
+  // the reason legible, rather than an empty result that reads like a model failure.
+  if (!(await ownsMatch(parsed.data.matchId, acting.profileId))) {
+    return { ok: false, error: "That match no longer exists." };
+  }
 
   const summary = await runDraft({ userId: session.user.id, matchId: parsed.data.matchId });
 
@@ -48,14 +57,16 @@ export async function draftMatchAction(input: unknown): Promise<ActionResult> {
  * honest and clears the role out of tomorrow's queue.
  */
 export async function markAppliedAction(input: unknown): Promise<ActionResult> {
-  await requireSession();
+  const acting = await actingProfileId();
+  if (!acting.ok) return { ok: false, error: acting.error };
 
   const parsed = matchSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "That match reference is not valid." };
 
-  await openOutreach(parsed.data.matchId);
-  const row = await getOutreachForMatch(parsed.data.matchId);
-  if (!row) return { ok: false, error: "Could not record that. Try again." };
+  // "No such match" and "not yours" give the same answer on purpose — distinguishing
+  // them would confirm that someone else's match exists.
+  const row = await openOwnedOutreach(parsed.data.matchId, acting.profileId);
+  if (!row) return { ok: false, error: "That match no longer exists." };
 
   if (row.status !== "drafted") {
     return { ok: false, error: `This role is already ${row.status}.` };
@@ -76,14 +87,16 @@ export async function markAppliedAction(input: unknown): Promise<ActionResult> {
  * to reason about than a dismissal flag sitting beside it.
  */
 export async function dismissMatchAction(input: unknown): Promise<ActionResult> {
-  await requireSession();
+  const acting = await actingProfileId();
+  if (!acting.ok) return { ok: false, error: acting.error };
 
   const parsed = matchSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "That match reference is not valid." };
 
-  await openOutreach(parsed.data.matchId);
-  const row = await getOutreachForMatch(parsed.data.matchId);
-  if (!row) return { ok: false, error: "Could not record that. Try again." };
+  // "No such match" and "not yours" give the same answer on purpose — distinguishing
+  // them would confirm that someone else's match exists.
+  const row = await openOwnedOutreach(parsed.data.matchId, acting.profileId);
+  if (!row) return { ok: false, error: "That match no longer exists." };
 
   if (row.status === "closed") return { ok: true, message: "Already closed." };
 

@@ -1430,3 +1430,36 @@ postings.
 
 **Files.** `drizzle/0008_scope_to_user.sql`, `drizzle/meta/0008_snapshot.json`,
 `drizzle/meta/_journal.json`, `src/db/queries/profile.ts`
+
+---
+
+## 2026-09-27 19:15 — Closing the authorization gap
+
+**Context.** The review found it: scoping stopped at the scoring path. `listDrafts`,
+`countDraftsByStatus`, `listPipeline`, `getFunnelCounts` and `getSendStats` took no
+owner, and every mutating action called `requireSession()` — which proves you are
+signed in and never that the row is yours. The day a second person signed up they
+would have seen, edited, approved and sent the first person's drafts.
+
+**Action.** Ownership is now part of *fetching*, not a check after it:
+`getOwnedDraft(id, profileId)`, `getOwnedOutreach(id, profileId)`,
+`openOwnedOutreach(matchId, profileId)` and `ownsMatch`. An action that cannot obtain
+a row cannot act on it, so there is no separate rule to forget. `actingProfileId()`
+gives actions the caller's profile as a result rather than a redirect, since an action
+cannot redirect the way a page can.
+
+"No such row" and "not yours" return the same message deliberately — distinguishing
+them confirms that someone else's row exists.
+
+**The guard that matters more than the fix.** `src/lib/authorization.test.ts` walks
+every `actions.ts`, asserts each user-scoped one establishes the acting profile, and
+fails if any action calls an unscoped fetcher. It immediately caught a case I had
+already "fixed": `markAppliedAction` and `dismissMatchAction` were safe only because
+`ownsMatch` happened to run before `getOutreachForMatch`. Correct by call order is not
+correct. Collapsed into `openOwnedOutreach`, where the scoping *is* the query.
+
+**Result.** 319 tests green; lint, typecheck and build clean.
+
+**Files.** `src/db/queries/{drafts,outreach}.ts`, `src/lib/session.ts`,
+`src/lib/authorization.test.ts`, `src/app/(app)/{review,pipeline,matches}/actions.ts`,
+`src/app/(app)/{pipeline,review}/page.tsx`

@@ -7,13 +7,13 @@ import {
   canDecide,
   canEdit,
   decideDraft,
-  getDraft,
+  getOwnedDraft,
   markDraftSent,
   saveDraftEdit,
 } from "@/db/queries/drafts";
 import { recordSend } from "@/db/queries/outreach";
 import { log } from "@/lib/logger";
-import { requireSession } from "@/lib/session";
+import { actingProfileId } from "@/lib/session";
 
 /**
  * Review-queue mutations (PRD §6: mutations are Server Actions). Every one checks the
@@ -44,12 +44,13 @@ export async function skipDraftAction(input: unknown): Promise<ActionResult> {
 }
 
 async function decide(input: unknown, status: "approved" | "skipped"): Promise<ActionResult> {
-  await requireSession();
+  const acting = await actingProfileId();
+  if (!acting.ok) return { ok: false, error: acting.error };
 
   const parsed = idSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "That draft reference is not valid." };
 
-  const existing = await getDraft(parsed.data.draftId);
+  const existing = await getOwnedDraft(parsed.data.draftId, acting.profileId);
   if (!existing) return { ok: false, error: "That draft no longer exists." };
   if (!canDecide(existing.status)) {
     return { ok: false, error: `This draft is already ${existing.status}.` };
@@ -65,14 +66,15 @@ async function decide(input: unknown, status: "approved" | "skipped"): Promise<A
 }
 
 export async function saveDraftEditAction(input: unknown): Promise<ActionResult> {
-  await requireSession();
+  const acting = await actingProfileId();
+  if (!acting.ok) return { ok: false, error: acting.error };
 
   const parsed = editSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "That edit is not valid." };
   }
 
-  const existing = await getDraft(parsed.data.draftId);
+  const existing = await getOwnedDraft(parsed.data.draftId, acting.profileId);
   if (!existing) return { ok: false, error: "That draft no longer exists." };
   if (!canEdit(existing.status)) {
     return { ok: false, error: `This draft is already ${existing.status} and cannot be edited.` };
@@ -92,12 +94,13 @@ export async function saveDraftEditAction(input: unknown): Promise<ActionResult>
  * Atlas has no way to observe your mail client, so this is the only honest signal.
  */
 export async function markSentAction(input: unknown): Promise<ActionResult> {
-  await requireSession();
+  const acting = await actingProfileId();
+  if (!acting.ok) return { ok: false, error: acting.error };
 
   const parsed = idSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "That draft reference is not valid." };
 
-  const existing = await getDraft(parsed.data.draftId);
+  const existing = await getOwnedDraft(parsed.data.draftId, acting.profileId);
   if (!existing) return { ok: false, error: "That draft no longer exists." };
   if (existing.status === "sent") return { ok: false, error: "Already marked as sent." };
 

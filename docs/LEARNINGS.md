@@ -1014,3 +1014,24 @@ moves data rather than just shape, this is not optional.
 And when a snapshot is hand-written, prove it: `drizzle-kit generate` afterwards must
 say "no schema changes". Anything else means the snapshot and the schema disagree, and
 every later migration inherits the error.
+
+---
+
+## 2026-09-27 19:15 — Correct by call order is not correct
+
+**Problem.** After adding ownership checks to the match actions, a structural test
+still failed them: they called `getOutreachForMatch(matchId)`, a fetcher that takes no
+owner.
+
+**Root cause.** They were safe — but only because `ownsMatch()` ran a few lines
+earlier. The safety lived in the *sequence*, not in either call. Any edit that
+reordered them, or an early return inserted between them, would have removed the
+protection silently, and nothing would have failed.
+
+**Fix.** `openOwnedOutreach(matchId, profileId)` does the check and the fetch as one
+operation. The scoping is the query, so call order cannot break it.
+
+**Rule.** When a guard and the thing it guards are separate statements, the guarantee
+is a convention. Make the safe thing the only reachable thing: fetch *through* the
+owner rather than checking and then fetching. And write the structural test — it is
+what noticed that a fix which looked complete was not.

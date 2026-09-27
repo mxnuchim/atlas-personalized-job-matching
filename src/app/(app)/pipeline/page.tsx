@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { PipelineTracker } from "@/components/pipeline-tracker";
 import { getFunnelCounts, listPipeline } from "@/db/queries/outreach";
 import { FUNNEL_ORDER, STAGE_LABEL, STAGE_TOKEN } from "@/lib/outreach";
+import { requireProfile } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Pipeline",
@@ -15,7 +16,22 @@ export const dynamic = "force-dynamic";
 
 /** Server-rendered shell; the rows are a client island because they change stage. */
 export default async function PipelinePage() {
-  const [rows, counts] = await Promise.all([listPipeline(), getFunnelCounts()]);
+  const { profile } = await requireProfile();
+  const [rows, counts] = await Promise.all([
+    profile ? listPipeline(profile.id) : [],
+    profile
+      ? getFunnelCounts(profile.id)
+      : {
+          drafted: 0,
+          sent: 0,
+          bounced: 0,
+          replied: 0,
+          interview: 0,
+          offer: 0,
+          rejected: 0,
+          closed: 0,
+        },
+  ]);
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (

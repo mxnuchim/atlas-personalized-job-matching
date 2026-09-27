@@ -27,14 +27,16 @@ export type SendStats = {
   complaints: number | null;
 };
 
-export async function getSendStats(): Promise<SendStats> {
+export async function getSendStats(profileId: string): Promise<SendStats> {
   const [row] = await db
     .select({
       totalSent: sql<number>`count(*) filter (where ${outreach.sentAt} is not null)::int`,
       sentToday: sql<number>`count(*) filter (where ${outreach.sentAt} >= date_trunc('day', now()))::int`,
       firstSentAt: sql<Date | null>`min(${outreach.sentAt})`,
     })
-    .from(outreach);
+    .from(outreach)
+    .innerJoin(matches, eq(outreach.matchId, matches.id))
+    .where(eq(matches.profileId, profileId));
 
   return {
     sentToday: row?.sentToday ?? 0,
@@ -124,6 +126,49 @@ export async function getOutreach(id: string): Promise<Outreach | null> {
   return row ?? null;
 }
 
+/** The outreach row, only if it belongs to this profile. See `getOwnedDraft`. */
+export async function getOwnedOutreach(id: string, profileId: string): Promise<Outreach | null> {
+  const [row] = await db
+    .select({ outreach })
+    .from(outreach)
+    .innerJoin(matches, eq(outreach.matchId, matches.id))
+    .where(and(eq(outreach.id, id), eq(matches.profileId, profileId)))
+    .limit(1);
+  return row?.outreach ?? null;
+}
+
+/**
+ * Get or open the outreach row for a match you own, in one scoped operation.
+ *
+ * Replaces `ownsMatch` + `openOutreach` + `getOutreachForMatch` at the call sites that
+ * used all three. Ownership was correct there only because the check happened to run
+ * first; here it is the query, so call order cannot break it. Returns null when the
+ * match is not yours, which reads the same as "no such match" — distinguishing them
+ * would confirm someone else's row exists.
+ */
+export async function openOwnedOutreach(
+  matchId: string,
+  profileId: string,
+): Promise<Outreach | null> {
+  if (!(await ownsMatch(matchId, profileId))) return null;
+
+  const existing = await getOutreachForMatch(matchId);
+  if (existing) return existing;
+
+  const [row] = await db.insert(outreach).values({ matchId, status: "drafted" }).returning();
+  return row ?? null;
+}
+
+/** True when this match belongs to this profile — the guard for match-level actions. */
+export async function ownsMatch(matchId: string, profileId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ one: sql`1` })
+    .from(matches)
+    .where(and(eq(matches.id, matchId), eq(matches.profileId, profileId)))
+    .limit(1);
+  return Boolean(row);
+}
+
 /**
  * Open a row when a draft is written, so a role enters the funnel at `drafted` rather
  * than materialising at `sent`. Without this the tracker's first column is structurally
@@ -157,13 +202,14 @@ const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
-export async function listPipeline(limit = 200): Promise<PipelineRow[]> {
+export async function listPipeline(profileId: string, limit = 200): Promise<PipelineRow[]> {
   const rows = await db
     .select({ outreach, matches, jobs, recipient: drafts.recipient })
     .from(outreach)
     .innerJoin(matches, eq(outreach.matchId, matches.id))
     .innerJoin(jobs, eq(matches.jobId, jobs.id))
     .leftJoin(drafts, eq(drafts.matchId, matches.id))
+    .where(eq(matches.profileId, profileId))
     .orderBy(desc(outreach.updatedAt))
     .limit(limit);
 
@@ -183,10 +229,14 @@ export async function listPipeline(limit = 200): Promise<PipelineRow[]> {
   }));
 }
 
-export async function getFunnelCounts(): Promise<Record<Outreach["status"], number>> {
+export async function getFunnelCounts(
+  profileId: string,
+): Promise<Record<Outreach["status"], number>> {
   const rows = await db
     .select({ status: outreach.status, count: sql<number>`count(*)::int` })
     .from(outreach)
+    .innerJoin(matches, eq(outreach.matchId, matches.id))
+    .where(eq(matches.profileId, profileId))
     .groupBy(outreach.status)
     .orderBy(asc(outreach.status));
 

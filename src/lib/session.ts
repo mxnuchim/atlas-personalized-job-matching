@@ -35,3 +35,18 @@ export async function requireProfile(): Promise<{
   const profile = session.user?.id ? await getCurrentProfile(session.user.id) : null;
   return { session, profile };
 }
+
+/**
+ * The acting user's profile id, or an error an action can return.
+ *
+ * Actions cannot redirect the way a page can, so this hands back a result instead of
+ * throwing. Pair it with the `getOwned*` queries: together they make ownership part of
+ * how a row is fetched rather than a rule each action has to remember.
+ */
+export async function actingProfileId(): Promise<
+  { ok: true; profileId: string } | { ok: false; error: string }
+> {
+  const { profile } = await requireProfile();
+  if (!profile) return { ok: false, error: "Set up your profile before using this." };
+  return { ok: true, profileId: profile.id };
+}

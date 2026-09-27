@@ -93,6 +93,7 @@ function statusFilter(filter: DraftFilter) {
 }
 
 export async function listDrafts(
+  profileId: string,
   status: DraftFilter = "pending",
   limit = 200,
 ): Promise<DraftRow[]> {
@@ -102,7 +103,7 @@ export async function listDrafts(
     .innerJoin(matches, eq(drafts.matchId, matches.id))
     .innerJoin(jobs, eq(matches.jobId, jobs.id))
     .leftJoin(evidence, eq(drafts.evidenceId, evidence.id))
-    .where(statusFilter(status))
+    .where(and(eq(matches.profileId, profileId), statusFilter(status)))
     .orderBy(desc(matches.overall), desc(drafts.createdAt))
     .limit(limit);
 
@@ -132,10 +133,14 @@ export async function listDrafts(
   });
 }
 
-export async function countDraftsByStatus(): Promise<Record<Draft["status"], number>> {
+export async function countDraftsByStatus(
+  profileId: string,
+): Promise<Record<Draft["status"], number>> {
   const rows = await db
     .select({ status: drafts.status, count: sql<number>`count(*)::int` })
     .from(drafts)
+    .innerJoin(matches, eq(drafts.matchId, matches.id))
+    .where(eq(matches.profileId, profileId))
     .groupBy(drafts.status);
 
   const counts = { pending: 0, approved: 0, skipped: 0, sent: 0, failed: 0 };
@@ -221,4 +226,22 @@ export async function markDraftFailed(id: string): Promise<void> {
 export async function getDraft(id: string): Promise<Draft | null> {
   const [row] = await db.select().from(drafts).where(eq(drafts.id, id)).limit(1);
   return row ?? null;
+}
+
+/**
+ * The draft, only if it belongs to this profile.
+ *
+ * Ownership is enforced by the fetch rather than by a check after it: an action that
+ * cannot obtain someone else's row cannot act on it, and there is no separate rule to
+ * forget. `requireSession()` proves you are signed in — it has never proved the row is
+ * yours, which is how two accounts would have shared one review queue.
+ */
+export async function getOwnedDraft(id: string, profileId: string): Promise<Draft | null> {
+  const [row] = await db
+    .select({ draft: drafts })
+    .from(drafts)
+    .innerJoin(matches, eq(drafts.matchId, matches.id))
+    .where(and(eq(drafts.id, id), eq(matches.profileId, profileId)))
+    .limit(1);
+  return row?.draft ?? null;
 }

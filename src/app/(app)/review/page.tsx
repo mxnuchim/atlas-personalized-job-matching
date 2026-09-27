@@ -17,7 +17,12 @@ export const dynamic = "force-dynamic";
 /** Server-rendered shell; the queue is a client island because it edits and decides. */
 export default async function ReviewPage() {
   const { profile } = await requireProfile();
-  const [drafts, counts] = await Promise.all([listDrafts("awaiting"), countDraftsByStatus()]);
+  const [drafts, counts] = await Promise.all([
+    profile ? listDrafts(profile.id, "awaiting") : [],
+    profile
+      ? countDraftsByStatus(profile.id)
+      : { pending: 0, approved: 0, skipped: 0, sent: 0, failed: 0 },
+  ]);
 
   const strengthLabels = Object.fromEntries(
     (profile?.strengths ?? []).map((s) => [s.key, s.label]),
