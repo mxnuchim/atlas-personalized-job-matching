@@ -11,6 +11,7 @@ import {
   type StrengthMatch,
 } from "@/db/schema";
 import { isStale, relativeAge } from "@/lib/age";
+import { capPerCompany } from "@/lib/queue";
 import { htmlToText } from "@/lib/html";
 import type { FitTier } from "@/lib/scoring";
 
@@ -164,7 +165,13 @@ function toMatchRow(m: Match, j: Job, now: Date): MatchRow {
  * "Not acted on" means no outreach row, or one still at `drafted`. Anything sent,
  * closed or further along has been dealt with and does not come back.
  */
-export async function listDailyQueue(limit: number): Promise<MatchRow[]> {
+export async function listDailyQueue(limit: number, maxPerCompany: number): Promise<MatchRow[]> {
+  // Fetch a pool rather than exactly `limit`: the per-company cap can only choose from
+  // what it is given, so asking for 20 and then capping would return fewer than 20
+  // whenever one employer dominates the top. Bounded, so a pathological corpus
+  // degrades to "fewer than asked for" rather than loading everything.
+  const pool = Math.min(limit * maxPerCompany * 10, 600);
+
   const rows = await db
     .select({ matches, jobs })
     .from(matches)
@@ -172,10 +179,11 @@ export async function listDailyQueue(limit: number): Promise<MatchRow[]> {
     .leftJoin(outreach, eq(outreach.matchId, matches.id))
     .where(and(isNull(jobs.closedAt), or(isNull(outreach.id), eq(outreach.status, "drafted"))))
     .orderBy(desc(matches.overall), desc(matches.scoredAt))
-    .limit(limit);
+    .limit(pool);
 
   const now = new Date();
-  return rows.map(({ matches: m, jobs: j }) => toMatchRow(m, j, now));
+  const candidates = rows.map(({ matches: m, jobs: j }) => toMatchRow(m, j, now));
+  return capPerCompany(candidates, limit, maxPerCompany);
 }
 
 /** How many matches are waiting, so the queue can say what it is holding back. */

@@ -1144,3 +1144,44 @@ of a fifteen-slot queue. Worth a diversity rule.
 **Files.** `src/lib/schedule.ts` + test, `.github/workflows/pipeline.yml`,
 `src/components/{daily-queue,fetch-now}.tsx`, `src/app/(app)/today/{page.tsx,actions.ts}`,
 `src/app/(app)/matches/actions.ts`, `src/db/queries/matches.ts`, `src/lib/env.ts`
+
+---
+
+## 2026-09-27 16:00 — Queue size, a per-company cap, and email instead of a webhook
+
+**Context.** Three corrections from the user. The queue size was 15, which I had picked
+without being asked — the stated range was 10–20, up to 25, ceiling 30. One employer
+could take a third of the queue. And the notification should be email, not a webhook.
+
+**Action.**
+
+*Size.* `DAILY_QUEUE_SIZE` defaults to 20, with the Zod schema bounded `min(5).max(30)`.
+The ceiling is the point: a cap that can be raised without limit is not a cap.
+
+*Per-company cap.* `MAX_PER_COMPANY` (default 4), applied by `capPerCompany` in
+`src/lib/queue.ts` — pure, `server-only`-free, seven tests. `listDailyQueue` now fetches
+a bounded pool rather than exactly `limit`, because a cap can only choose from what it
+is given: asking for 20 and then capping returns fewer than 20 whenever one employer
+dominates the top.
+
+*Email.* The webhook is gone entirely — `NOTIFY_WEBHOOK_URL` and the per-service body
+shaping with it. `notify.ts` now sends through Resend in one `fetch`, with an HTML body
+built on tables and inline styles (email clients are not browsers) and a plain-text
+alternative. The subject carries the decision — "Atlas: 6 roles ready, 2 strong" or
+"Atlas: nothing new today" — because a subject reading "run complete" wastes the one
+line that is always read. `queued` is the **capped queue length**, not the raw backlog:
+an email saying "276 roles ready" is the firehose this design exists to avoid.
+
+**Result.** 289 tests green; lint, typecheck and build clean. Verified against real
+data: the queue holds 20 roles across **11 companies**, with SumUp and Cohere each at
+exactly 4. Without the cap it would have been three employers — SumUp alone has 30
+unacted matches, Adyen 35, Cohere 17.
+
+**Setup note.** `RESEND_API_KEY` and `NOTIFY_EMAIL_TO` in `.env.local`; unset means no
+email and the run still records everything. `NOTIFY_EMAIL_FROM` defaults to Resend's
+shared sandbox sender, which delivers to your own account address without verifying a
+domain — anywhere else needs one.
+
+**Files.** `src/lib/{queue.ts,queue.test.ts,notify.ts,notify.test.ts,env.ts}`,
+`src/db/queries/matches.ts`, `src/pipeline/run.ts`, `src/app/(app)/today/page.tsx`,
+`.env.example`

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { listDailyQueue } from "@/db/queries/matches";
 import { failRun, finishRun, runStatusFor, startRun, type RunTotals } from "@/db/queries/runs";
 import type { RunError } from "@/db/schema";
 import { env } from "@/lib/env";
@@ -70,9 +71,13 @@ export async function runPipeline(
 
     await finishRun(runId, totals);
 
+    // The email reports exactly what the screen will show — the capped queue, not the
+    // raw backlog. "276 roles ready" is the firehose this whole design exists to avoid.
+    const queue = await listDailyQueue(env.DAILY_QUEUE_SIZE, env.MAX_PER_COMPANY);
+
     // After the run is durably recorded, never before: the `runs` row is the record,
     // the notification is a convenience, and `notifyRun` swallows its own failures so
-    // an unreachable webhook cannot fail a run that did its work.
+    // an unreachable provider cannot fail a run that did its work.
     const { sent } = await notifyRun({
       newJobs: ingest.inserted,
       scored: scoring.scored,
@@ -81,6 +86,12 @@ export async function runPipeline(
       errors: errors.length,
       sourcesOk: ingest.sourcesOk,
       sourcesTotal: ingest.sourcesTotal,
+      queued: queue.length,
+      top: queue.slice(0, 5).map((m) => ({
+        title: m.title,
+        company: m.company,
+        overall: m.overall,
+      })),
       costUsd: totals.costUsd,
       status: totals.status,
       appUrl: env.APP_URL,

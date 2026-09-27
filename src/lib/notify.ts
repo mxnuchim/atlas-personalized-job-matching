@@ -4,19 +4,26 @@ import { env } from "@/lib/env";
 import { log } from "@/lib/logger";
 
 /**
- * The run notification (PRD §8 step 7): "Send yourself a short 'N new matches, T strong'
- * message."
+ * The daily email (PRD §8 step 7).
  *
- * A webhook rather than email — Atlas no longer touches a mailbox, and every service
- * worth being notified on (Slack, Discord, ntfy, Telegram) accepts an HTTP POST. The
- * body shape differs per service, so it is chosen from the URL: guessing wrong means a
- * silently empty message, which is the same as no notification at all.
+ * Email rather than a webhook: the point is a single message each morning that tells
+ * you whether opening Atlas is worth it, and how many roles are waiting. A push
+ * notification is read and dismissed; an email sits in the inbox next to the rest of
+ * the job search, which is where this belongs.
+ *
+ * Sent through Resend — one HTTP call, no SDK, and the key never leaves this module.
  */
 
 const logger = log("notify");
 
-/** Enough time to matter, short enough that a dead webhook cannot stall a run. */
+/** Enough time to matter, short enough that a dead provider cannot stall a run. */
 const TIMEOUT_MS = 10_000;
+
+export type QueuePreview = {
+  title: string;
+  company: string;
+  overall: number;
+};
 
 export type RunNotification = {
   newJobs: number;
@@ -27,112 +34,172 @@ export type RunNotification = {
   /** Source coverage; a shortfall changes what every other count means. */
   sourcesOk: number;
   sourcesTotal: number;
+  /**
+   * How many roles today's queue holds, and the best few to preview. `queued` is the
+   * capped queue length, not the raw backlog — an email saying "276 roles ready" is
+   * the firehose this design exists to avoid.
+   */
+  queued: number;
+  top: QueuePreview[];
   costUsd: number | null;
   status: "ok" | "partial" | "failed";
   appUrl: string;
 };
 
+/** Coverage qualifies every count, so it is stated wherever counts are. */
+function shortfall(run: RunNotification): string {
+  return run.sourcesTotal > 0 && run.sourcesOk < run.sourcesTotal
+    ? `Only ${run.sourcesOk} of ${run.sourcesTotal} sources answered, so today's list is drawn from an incomplete picture.`
+    : "";
+}
+
 /**
- * One line, in the product's voice (§10.6): plain, active, no exclamation. The day's
- * headline is how many are worth your attention, so `strong` leads.
+ * The subject line carries the decision: is there anything worth opening the app for?
+ * Everything else is detail, and a subject that says "Atlas run complete" wastes the
+ * one line that is always read.
  */
-export function buildMessage(run: RunNotification): string {
-  // `strong` is included so no combination of counts can yield "nothing new"
-  // alongside something worth reading.
-  // Coverage qualifies everything after it, so it is stated before any count — a
-  // thin day and a half-failed run produce the same numbers, and only this separates
-  // them.
-  const shortfall =
-    run.sourcesTotal > 0 && run.sourcesOk < run.sourcesTotal
-      ? ` Only ${run.sourcesOk} of ${run.sourcesTotal} sources answered.`
-      : "";
+export function buildSubject(run: RunNotification): string {
+  if (run.queued === 0) return "Atlas: nothing new today";
 
-  if (run.scored === 0 && run.newJobs === 0 && run.drafted === 0 && run.strong === 0) {
-    return run.errors > 0
-      ? `Atlas run finished with ${run.errors} error${run.errors === 1 ? "" : "s"} and nothing new.${shortfall}`
-      : `Atlas ran. Nothing new to review.${shortfall}`;
+  const strong = run.strong > 0 ? `, ${run.strong} strong` : "";
+  return `Atlas: ${run.queued} role${run.queued === 1 ? "" : "s"} ready${strong}`;
+}
+
+/** Plain text, for clients that prefer it and as the accessible fallback. */
+export function buildText(run: RunNotification): string {
+  const lines: string[] = [];
+
+  lines.push(
+    run.queued === 0
+      ? "Nothing new to review today."
+      : `${run.queued} role${run.queued === 1 ? "" : "s"} waiting in today's queue.`,
+  );
+
+  if (run.top.length > 0) {
+    lines.push("");
+    for (const role of run.top) {
+      lines.push(`  ${role.overall}  ${role.title} — ${role.company}`);
+    }
+    if (run.queued > run.top.length) {
+      lines.push(`  …and ${run.queued - run.top.length} more.`);
+    }
   }
 
-  const parts: string[] = [];
-  if (run.strong > 0) {
-    parts.push(`${run.strong} strong match${run.strong === 1 ? "" : "es"}`);
-  }
-  if (run.drafted > 0) {
-    parts.push(`${run.drafted} draft${run.drafted === 1 ? "" : "s"} ready`);
-  }
-  if (parts.length === 0 && run.scored > 0) {
-    parts.push(`${run.scored} scored, none strong`);
-  }
-  if (run.newJobs > 0) parts.push(`${run.newJobs} new posting${run.newJobs === 1 ? "" : "s"}`);
+  const caveat = shortfall(run);
+  if (caveat) lines.push("", caveat);
 
-  const tail: string[] = [];
+  lines.push("", `Open the queue: ${run.appUrl}/today`);
+
+  const tail: string[] = [`${run.newJobs} new postings`, `${run.scored} scored`];
   if (run.errors > 0) tail.push(`${run.errors} error${run.errors === 1 ? "" : "s"}`);
   if (run.costUsd !== null && run.costUsd > 0) tail.push(`$${run.costUsd.toFixed(3)}`);
+  lines.push("", tail.join(" · "));
 
-  return `Atlas: ${parts.join(", ")}${tail.length > 0 ? ` (${tail.join(", ")})` : ""}.${shortfall} ${run.appUrl}/today`;
+  return lines.join("\n");
 }
 
-export type WebhookRequest = { body: string; contentType: string };
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 /**
- * Shape the payload for the service the URL points at. Slack wants `text`, Discord
- * wants `content`, ntfy takes the message as the raw body; anything else gets the most
- * common JSON convention plus the alternates, since a generic endpoint is more likely
- * to ignore an extra key than to invent the one it wants.
+ * Table layout and inline styles throughout: email clients are not browsers, and
+ * anything relying on flexbox or a stylesheet renders as an unstyled pile in Outlook.
  */
-export function buildWebhookRequest(url: string, message: string): WebhookRequest {
-  let host = "";
-  try {
-    host = new URL(url).hostname.toLowerCase();
-  } catch {
-    host = "";
-  }
+export function buildHtml(run: RunNotification): string {
+  const caveat = shortfall(run);
 
-  if (host.endsWith("slack.com")) {
-    return { body: JSON.stringify({ text: message }), contentType: "application/json" };
-  }
-  if (host.endsWith("discord.com") || host.endsWith("discordapp.com")) {
-    return { body: JSON.stringify({ content: message }), contentType: "application/json" };
-  }
-  if (host.endsWith("ntfy.sh")) {
-    return { body: message, contentType: "text/plain" };
-  }
-  return {
-    body: JSON.stringify({ text: message, content: message, message }),
-    contentType: "application/json",
-  };
+  const rows = run.top
+    .map(
+      (role) => `
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #e6e8ee;vertical-align:top;width:44px">
+            <div style="font:600 15px/1 -apple-system,Segoe UI,sans-serif;color:#4c5bd4">${role.overall}</div>
+          </td>
+          <td style="padding:10px 0;border-bottom:1px solid #e6e8ee">
+            <div style="font:600 14px/1.4 -apple-system,Segoe UI,sans-serif;color:#15171c">${escapeHtml(role.title)}</div>
+            <div style="font:400 13px/1.4 -apple-system,Segoe UI,sans-serif;color:#6b7280">${escapeHtml(role.company)}</div>
+          </td>
+        </tr>`,
+    )
+    .join("");
+
+  const more =
+    run.queued > run.top.length
+      ? `<p style="font:400 13px/1.5 -apple-system,Segoe UI,sans-serif;color:#6b7280;margin:12px 0 0">…and ${run.queued - run.top.length} more in the queue.</p>`
+      : "";
+
+  return `<!doctype html>
+<html><body style="margin:0;padding:24px;background:#f6f7f9">
+  <table role="presentation" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:28px">
+    <tr><td>
+      <h1 style="font:600 18px/1.3 -apple-system,Segoe UI,sans-serif;color:#15171c;margin:0 0 4px">
+        ${run.queued === 0 ? "Nothing new today" : `${run.queued} role${run.queued === 1 ? "" : "s"} ready`}
+      </h1>
+      <p style="font:400 14px/1.5 -apple-system,Segoe UI,sans-serif;color:#6b7280;margin:0 0 20px">
+        ${run.newJobs} new postings · ${run.scored} scored${run.strong > 0 ? ` · ${run.strong} strong` : ""}
+      </p>
+
+      ${rows ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%">${rows}</table>` : ""}
+      ${more}
+
+      ${
+        caveat
+          ? `<p style="font:400 13px/1.5 -apple-system,Segoe UI,sans-serif;color:#8a5e1d;background:#fdf6e9;border-radius:8px;padding:10px 12px;margin:20px 0 0">${escapeHtml(caveat)}</p>`
+          : ""
+      }
+
+      <p style="margin:24px 0 0">
+        <a href="${run.appUrl}/today" style="display:inline-block;background:#4c5bd4;color:#fff;text-decoration:none;font:600 14px/1 -apple-system,Segoe UI,sans-serif;padding:12px 18px;border-radius:8px">Open today&rsquo;s queue</a>
+      </p>
+    </td></tr>
+  </table>
+</body></html>`;
 }
 
 /**
- * Post the notification. Never throws: a failed notification must not fail a run that
- * otherwise did its work — the run row is the durable record, this is a convenience.
+ * Send the email. Never throws: a failed notification must not fail a run that
+ * otherwise did its work — the `runs` row is the durable record, this is a convenience.
  */
 export async function notifyRun(run: RunNotification): Promise<{ sent: boolean; reason?: string }> {
-  const url = env.NOTIFY_WEBHOOK_URL;
-  if (!url) return { sent: false, reason: "NOTIFY_WEBHOOK_URL not set" };
-
-  const message = buildMessage(run);
-  const { body, contentType } = buildWebhookRequest(url, message);
+  if (!env.RESEND_API_KEY) return { sent: false, reason: "RESEND_API_KEY not set" };
+  if (!env.NOTIFY_EMAIL_TO) return { sent: false, reason: "NOTIFY_EMAIL_TO not set" };
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: { "content-type": contentType },
-      body,
+      headers: {
+        authorization: `Bearer ${env.RESEND_API_KEY}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        from: env.NOTIFY_EMAIL_FROM,
+        to: [env.NOTIFY_EMAIL_TO],
+        subject: buildSubject(run),
+        html: buildHtml(run),
+        text: buildText(run),
+      }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
 
     if (!response.ok) {
-      const reason = `webhook returned HTTP ${response.status}`;
-      logger.warn({ status: response.status }, "notification failed");
+      // Resend explains refusals in the body — an unverified sender is the common one,
+      // and "HTTP 403" alone would send you looking in the wrong place.
+      const detail = await response.text().catch(() => "");
+      const reason = `Resend returned HTTP ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`;
+      logger.warn({ status: response.status, detail: detail.slice(0, 200) }, "email failed");
       return { sent: false, reason };
     }
 
-    logger.info({ message }, "notification sent");
+    logger.info({ to: env.NOTIFY_EMAIL_TO, queued: run.queued }, "daily email sent");
     return { sent: true };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    logger.warn({ error: reason }, "notification failed");
+    logger.warn({ error: reason }, "email failed");
     return { sent: false, reason };
   }
 }

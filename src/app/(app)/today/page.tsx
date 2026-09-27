@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 export default async function TodayPage() {
   const [counts, queue, waiting, jobCount, profile, lastRun] = await Promise.all([
     getMatchCounts(),
-    listDailyQueue(env.DAILY_QUEUE_SIZE),
+    listDailyQueue(env.DAILY_QUEUE_SIZE, env.MAX_PER_COMPANY),
     countDailyQueue(),
     countJobs(),
     getCurrentProfile(),

@@ -49,11 +49,19 @@ const envSchema = z.object({
   LOGIN_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
 
   /**
-   * How many roles the day's queue offers at once. The limit is how many a person can
-   * actually apply to in a day, not how many exist — a list of four hundred is the
-   * same as no list at all.
+   * How many roles the day's queue offers at once, and at most how many may come from
+   * any one employer.
+   *
+   * The limit is how many a person can actually apply to in a day, not how many exist.
+   * The ceiling of 30 is deliberate: a cap you can raise without limit is not a cap.
    */
-  DAILY_QUEUE_SIZE: z.coerce.number().int().min(1).max(100).default(15),
+  DAILY_QUEUE_SIZE: z.coerce.number().int().min(5).max(30).default(20),
+  /**
+   * Sorting purely by fit let one employer take a third of the queue — four
+   * consecutive roles at the same company, all genuinely strong. Fifteen roles at
+   * eleven companies is a better day's work than fifteen at four.
+   */
+  MAX_PER_COMPANY: z.coerce.number().int().min(1).max(10).default(4),
 
   /**
    * Postings older than this never enter the corpus. A board returns every open
@@ -64,10 +72,16 @@ const envSchema = z.object({
   MAX_POSTING_AGE_DAYS: z.coerce.number().int().min(1).max(365).default(30),
 
   /**
-   * Where the "N new matches" run notification goes (PRD §8 step 7). Any endpoint that
-   * takes a POST: Slack, Discord, ntfy, or your own. Unset = no notification.
+   * The daily email (PRD §8 step 7). Sent through Resend; unset means no email, and
+   * the run still records everything it did either way.
+   *
+   * `NOTIFY_EMAIL_FROM` defaults to Resend's shared sandbox sender, which delivers to
+   * your own account address without verifying a domain. Sending anywhere else needs
+   * a domain verified in Resend.
    */
-  NOTIFY_WEBHOOK_URL: z.url().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  NOTIFY_EMAIL_TO: z.email().optional(),
+  NOTIFY_EMAIL_FROM: z.string().default("Atlas <onboarding@resend.dev>"),
 
   // Ops
   TZ: z.string().default("UTC"),
