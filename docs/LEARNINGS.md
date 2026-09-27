@@ -965,3 +965,27 @@ for a limit it is a legitimate instruction, not an absence. `value ? a : b` cann
 "zero" from "missing", and when the fallback is a default rather than an error, the
 mistake is silent and expensive. Three copies of a parse is three chances to get the
 same edge wrong; one tested definition is one.
+
+---
+
+## 2026-09-27 18:31 — A blank environment variable is not an absent one
+
+**Problem.** A Vercel deploy failed with seven validation errors, including
+`LLM_MAX_CONCURRENCY: Too small: expected number to be >=1` — for a variable with a
+default of 3 — and `LOG_LEVEL: Invalid option`, for one defaulting to `info`.
+
+**Root cause.** Zod's `.default()` and `.optional()` apply when a key is **absent**.
+Every hosting dashboard sets a field you created and left empty to `""`, which is
+present. So the default never fires, `z.email()` rejects `""`, and
+`z.coerce.number()` sends `Number("")` — which is `0` — into `.min(1)`. Hence an error
+naming a value nobody typed, about a variable that has a perfectly good default.
+
+**Fix.** `withoutBlanks()` strips empty and whitespace-only values from `process.env`
+before parsing, so a variable you created but left blank behaves exactly like one you
+never created. Six tests, including one asserting a genuinely invalid value is still
+rejected — blank-tolerance must not become "accept anything".
+
+**Rule.** Validate configuration against how it is actually supplied. A dashboard has
+no way to express "absent" once you have added the row, so `""` is the real shape of
+"unset" everywhere except a local `.env` file. Any schema with defaults needs to
+normalise it before parsing, or the defaults only work on the machine you wrote them on.

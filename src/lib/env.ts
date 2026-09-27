@@ -116,18 +116,43 @@ const BUILD_PLACEHOLDERS = {
   AUTH_SECRET: "build-only-placeholder-not-a-real-secret",
 } as const;
 
+/**
+ * An empty variable means "not set".
+ *
+ * Zod's `.default()` and `.optional()` only apply when a key is *absent*, and every
+ * hosting dashboard sets a blank field to `""` rather than omitting it. So adding
+ * `LOG_LEVEL` and leaving it empty produced "Invalid option" instead of `info`, and
+ * an empty `LLM_MAX_CONCURRENCY` coerced through `Number("")` to `0` and reported
+ * "too small" — an error naming a value nobody typed.
+ *
+ * Stripping them here means a variable you created but left blank behaves exactly
+ * like one you never created, which is what anyone filling in a dashboard expects.
+ */
+function withoutBlanks(source: NodeJS.ProcessEnv): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (typeof value === "string" && value.trim() !== "") out[key] = value;
+  }
+  return out;
+}
+
 function loadEnv(): Env {
   const skipValidation =
     process.env.SKIP_ENV_VALIDATION === "1" || process.env.SKIP_ENV_VALIDATION === "true";
 
-  const source = skipValidation ? { ...BUILD_PLACEHOLDERS, ...process.env } : process.env;
+  const present = withoutBlanks(process.env);
+  const source = skipValidation ? { ...BUILD_PLACEHOLDERS, ...present } : present;
 
   const parsed = envSchema.safeParse(source);
   if (!parsed.success) {
     const lines = parsed.error.issues.map(
       (issue) => `  • ${issue.path.join(".") || "(root)"}: ${issue.message}`,
     );
-    console.error(`\n❌ Invalid environment variables:\n${lines.join("\n")}\n`);
+    console.error(
+      `\n❌ Invalid environment variables:\n${lines.join("\n")}\n\n` +
+        `Blank values are treated as unset, so an empty variable is never the cause.\n` +
+        `See docs/DEPLOY.md for the required set.\n`,
+    );
     throw new Error("Invalid environment variables. See messages above.");
   }
   return parsed.data;

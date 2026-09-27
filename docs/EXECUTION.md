@@ -1319,3 +1319,26 @@ wasted beyond the intent.
 
 **Files.** `src/pipeline/{limits.ts,limits.test.ts,cli.ts,run.ts}`,
 `src/app/api/pipeline/run/route.ts`
+
+---
+
+## 2026-09-27 18:31 — Blank env vars broke the Vercel deploy
+
+**Context.** The first Vercel deploy failed on seven environment variables, most of
+which have defaults. Reported as a misconfiguration; it was a bug in `env.ts`.
+
+**Action.** `withoutBlanks()` strips empty and whitespace-only values before the schema
+runs, so a variable created and left blank in a dashboard behaves like one that was
+never created. The failure message now says so, to stop the next person hunting an
+empty field. Six tests in `src/lib/env.test.ts` cover absent, blank, whitespace, a real
+value and a genuinely invalid one.
+
+**Result.** 308 tests green; lint, typecheck and build clean.
+
+**Open — raised by the user, not yet built.** Two people want to use this, with a
+profile picker rather than one account seeded from env. Nothing in the schema is
+user-scoped today: `users` exists but no other table references it, and
+`profile.version` is globally unique, so two profiles collide at version 1. Scoping is
+the work, not the signup form — see the next entry when it happens.
+
+**Files.** `src/lib/env.ts`, `src/lib/env.test.ts`
