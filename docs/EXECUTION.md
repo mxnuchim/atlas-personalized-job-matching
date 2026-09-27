@@ -914,3 +914,57 @@ a job-board credential is not that. Verified by planting both cases.
 + tests, `src/pipeline/sources/index.ts`, `src/pipeline/ingest.ts`,
 `src/db/{sources.catalogue,seed-sources}.ts`, `src/app/api/pipeline/run/route.ts`,
 `src/lib/llm/boundary.test.ts`, `package.json`
+
+---
+
+## 2026-09-27 09:17 — Role collapse, posting age, and the freshness window
+
+**Context.** A fair challenge to the previous entry's headline: were 4,093 jobs really
+posted in 24 hours, matching precisely, after dedupe? No — and the number invited that
+reading. Three things were wrong with it, two of them the report's fault.
+
+**What the data said.** Only 119 of 4,182 rows were posted in the last 24h; 1,618 in 7
+days; the oldest dated 2009. An ATS board returns *every open requisition*, so a first
+run pulls the whole standing market. 4,182 rows covered 3,421 distinct company+title
+pairs — one Databricks role listed 14 times, a Celonis one 11 — because a role
+advertised in fourteen cities is fourteen postings with fourteen ids. And the gate is
+coarse by design: it asks "does this read as engineering" and "is the location not
+excluded", nothing more. It is a queue depth, not a verdict.
+
+**Action.**
+
+*Role collapse* (`src/pipeline/dedupe.ts`) — groups by source + company + normalised
+title, merges locations, ORs remoteness, keeps the **earliest** date so a re-post into
+one new city cannot refresh a year-old req. The representative is elected by lowest
+external id, never by payload order: a positional choice would let a board reordering
+its response elect a different id, which the unique index would store as a *new* job —
+the collapse would breed duplicates instead of removing them. Runs after the relevance
+gate, so each variant is judged on its own location first.
+
+*Posting age* (`src/lib/age.ts`) — the Jobs list showed `first_seen_at`, when Atlas
+ingested, which makes a 2023 requisition look like it arrived this morning. Now shows
+the board's own `posted_at`, with a "Long open" marker past 180 days. `MatchRow` carries
+`postedAgeLabel` and `evergreen`, pre-formatted server-side to avoid a hydration
+mismatch. The Matches table's "Scored" column became "Posted" — when Atlas scored
+something is an internal detail; the scored date and model remain in the drawer footer.
+
+*Freshness window* — `/jobs?window=` with 24h/48h/7d/30d/all, defaulting to 48h, with
+live counts on each pill so the choice is made against real numbers. A **view**, not an
+ingest filter: changing it is a link, not a re-ingest. Undated postings are excluded
+from bounded windows, since "no date" is not evidence of freshness.
+
+**Two defects the live render exposed.** The header printed `jobs.length` — the page cap
+— and so claimed "200 posted in the last 48 hours" when there were 458. And bare `ai`
+and `ml` in the vocabulary had admitted "Go-to-Market Champion (GPU & AI)" and "Product
+Manager, Performance AI". Both fixed; `ai`/`ml` now only match as part of a real role
+name, and `junior`, `product manager`, `product owner`, `gtm` joined the exclusions.
+
+**Result.** Cleanup removed 743 duplicate rows (0 had a match or draft) and 176 newly
+irrelevant ones (51 more were protected by an existing match and left alone).
+3,263 rows for 3,421→3,240 distinct roles. Windows now read **24h 100 · 48h 433 ·
+7d 1,263 · 30d 2,226 · all 3,263**. 261 tests green; lint, typecheck, build clean.
+
+**Files.** `src/pipeline/{dedupe.ts,dedupe.test.ts,ingest.ts,relevance.ts,relevance.test.ts}`,
+`src/lib/{age.ts,age.test.ts}`, `src/db/queries/{jobs.ts,matches.ts}`,
+`src/app/(app)/jobs/page.tsx`, `src/components/{matches-table,match-drawer}.tsx`,
+`src/app/preview/gallery.tsx`

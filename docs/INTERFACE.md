@@ -254,9 +254,22 @@ Breadth is a data problem, not a UI one, but it decides what every screen can sh
   66 boards is ~11,900 postings and scoring is one LLM call each. It is deliberately
   biased toward keeping: an unknown or unrecognised location is kept, because the model
   judges `location_fit` properly and a filter should not pre-empt it.
-- **Ingest reports the split** (`seen` / `filtered` / `inserted` / `duplicates`). Surface
-  it anywhere ingest is shown: a filter that is quietly too tight looks exactly like a
-  quiet week, and the counts are the only thing that tells them apart.
+- **Ingest reports the split** (`seen` / `filtered` / `collapsed` / `inserted` /
+  `duplicates`). Surface it anywhere ingest is shown: a filter that is quietly too tight
+  looks exactly like a quiet week, and the counts are the only thing that tells them
+  apart.
+- **One role, one row.** A role advertised in many cities arrives as many postings;
+  `src/pipeline/dedupe.ts` collapses them after the gate and merges the locations. Never
+  show the same job twice in a list.
+- **Show when a role was posted, never when Atlas ingested it.** `first_seen_at` is the
+  same instant for thousands of rows after a first run, so it sorts arbitrarily and makes
+  a 2023 requisition look new. Use `posted_at` via `relativeAge`, pre-formatted on the
+  server (computing it in a client island mismatches on hydration), and mark anything
+  open past 180 days as **Long open** — the fit score cannot tell you that.
+- **Any list of postings states its window.** The Jobs screen defaults to 48 hours with
+  per-window counts on the switcher. A count with no window attached gets read as "today",
+  and the reader will assume the flattering interpretation. When a page cap truncates the
+  list, say so — print the real total, then "Showing the first N".
 - **There is still no sources screen.** Adding or disabling a board means editing the
   catalogue and re-seeding. For a tool whose output quality is bounded by its inputs,
   this is the most valuable screen not yet built.

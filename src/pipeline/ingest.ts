@@ -6,12 +6,15 @@ import { getEnabledSources } from "@/db/queries/sources";
 import { jobs, type NewJob, type Source } from "@/db/schema";
 import { log } from "@/lib/logger";
 
+import { collapseRoles } from "./dedupe";
 import { buildCriteria, isRelevant, type RelevanceCriteria } from "./relevance";
 import { getFetcher } from "./sources";
 
 /**
  * Per-source outcome. `duplicates` are postings already stored (the dedupe win);
- * `filtered` are postings the relevance gate rejected before they were ever stored.
+ * `filtered` are postings the relevance gate rejected before they were ever stored;
+ * `collapsed` are extra listings of a role already counted — one job advertised in
+ * many cities.
  */
 export type IngestResult = {
   source: string;
@@ -19,6 +22,7 @@ export type IngestResult = {
   inserted: number;
   duplicates: number;
   filtered: number;
+  collapsed: number;
   error?: string;
 };
 
@@ -27,6 +31,7 @@ export type IngestSummary = {
   inserted: number;
   duplicates: number;
   filtered: number;
+  collapsed: number;
   results: IngestResult[];
 };
 
@@ -41,7 +46,14 @@ export async function ingestSource(
   criteria: RelevanceCriteria | null,
 ): Promise<IngestResult> {
   const logger = log("ingest");
-  const empty = { source: source.name, seen: 0, inserted: 0, duplicates: 0, filtered: 0 };
+  const empty = {
+    source: source.name,
+    seen: 0,
+    inserted: 0,
+    duplicates: 0,
+    filtered: 0,
+    collapsed: 0,
+  };
 
   const fetcher = getFetcher(source.kind);
   if (!fetcher) {
@@ -68,16 +80,22 @@ export async function ingestSource(
     : normalized;
   const filtered = normalized.length - relevant.length;
 
+  // One role advertised in many cities is many postings with many ids. Collapse them
+  // after the gate, so each variant is judged on its own location first (see
+  // `./dedupe`).
+  const collapsedJobs = collapseRoles(relevant);
+  const collapsed = relevant.length - collapsedJobs.length;
+
   // Guard against a source repeating an external id within one payload; the DB
   // unique index would also catch it, but this keeps the insert well-formed.
   const deduped = new Map<string, NewJob>();
-  for (const job of relevant) {
+  for (const job of collapsedJobs) {
     deduped.set(job.externalId, { ...job, sourceId: source.id });
   }
   const rows = [...deduped.values()];
 
   if (rows.length === 0) {
-    return { ...empty, seen: normalized.length, filtered };
+    return { ...empty, seen: normalized.length, filtered, collapsed };
   }
 
   const insertedRows = await db
@@ -92,6 +110,7 @@ export async function ingestSource(
     inserted: insertedRows.length,
     duplicates: rows.length - insertedRows.length,
     filtered,
+    collapsed,
   };
   logger.info(result, "source ingested");
   return result;
@@ -123,6 +142,7 @@ export async function runIngest(): Promise<IngestSummary> {
     inserted: results.reduce((total, result) => total + result.inserted, 0),
     duplicates: results.reduce((total, result) => total + result.duplicates, 0),
     filtered: results.reduce((total, result) => total + result.filtered, 0),
+    collapsed: results.reduce((total, result) => total + result.collapsed, 0),
     results,
   };
   logger.info({ sources: sources.length, ...summary, results: undefined }, "ingest complete");

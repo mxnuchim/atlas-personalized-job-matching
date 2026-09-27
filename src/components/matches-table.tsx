@@ -22,7 +22,7 @@ import { type FitTier, TIER_LABELS } from "@/lib/scoring";
  * and they do it once (§10.4/§10.5 — no fade-up on every row).
  */
 
-type SortKey = "overall" | "title" | "company" | "location" | "scoredAt";
+type SortKey = "overall" | "title" | "company" | "location" | "postedAt";
 type SortDir = "asc" | "desc";
 
 const TIER_FILTERS: (FitTier | "all")[] = ["all", "strong", "possible", "stretch"];
@@ -32,7 +32,10 @@ const COLUMNS: { key: SortKey; label: string; className: string }[] = [
   { key: "title", label: "Role", className: "min-w-0" },
   { key: "company", label: "Company", className: "hidden w-[150px] md:table-cell" },
   { key: "location", label: "Location", className: "hidden w-[170px] lg:table-cell" },
-  { key: "scoredAt", label: "Scored", className: "hidden w-[84px] pr-5 sm:table-cell" },
+  // When the role was posted, not when Atlas scored it: the scoring date is an
+  // internal detail, while how long a req has been open changes how you treat it.
+  // The scored date and model still show in the drawer footer.
+  { key: "postedAt", label: "Posted", className: "hidden w-[92px] pr-5 sm:table-cell" },
 ];
 
 /** A key cap. Sans, not monospace — monospace labels are an anti-pattern here. */
@@ -82,8 +85,13 @@ export function MatchesTable({
       switch (sort.key) {
         case "overall":
           return (a.overall - b.overall) * dir;
-        case "scoredAt":
-          return a.scoredAt.localeCompare(b.scoredAt) * dir;
+        case "postedAt":
+          // Undated postings sort last in either direction rather than pretending
+          // to be the oldest, which an empty string would do.
+          if (!a.postedAt && !b.postedAt) return 0;
+          if (!a.postedAt) return 1;
+          if (!b.postedAt) return -1;
+          return a.postedAt.localeCompare(b.postedAt) * dir;
         case "location":
           return (a.location ?? "").localeCompare(b.location ?? "") * dir;
         default:
@@ -155,7 +163,7 @@ export function MatchesTable({
       s.key === key
         ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
         : // Scores and dates are most useful highest-first; names A–Z.
-          { key, dir: key === "overall" || key === "scoredAt" ? "desc" : "asc" },
+          { key, dir: key === "overall" || key === "postedAt" ? "desc" : "asc" },
     );
   }
 
@@ -292,7 +300,12 @@ export function MatchesTable({
                     {match.location ?? (match.remote ? "Remote" : "—")}
                   </td>
                   <td className="text-muted-foreground hidden py-2.5 pr-5 text-xs tabular-nums sm:table-cell">
-                    {match.scoredAtLabel}
+                    {match.postedAgeLabel ?? "—"}
+                    {match.evergreen && (
+                      <span className="ml-1 opacity-60" title="Open for over six months">
+                        ·
+                      </span>
+                    )}
                   </td>
                   <td className="hidden py-2.5 pr-5 sm:table-cell">
                     <TierChip tier={match.tier} />

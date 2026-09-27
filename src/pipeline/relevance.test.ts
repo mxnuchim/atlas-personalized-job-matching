@@ -93,6 +93,24 @@ describe("isRelevant — title", () => {
     }
   });
 
+  it("does not treat bare AI or ML as an engineering signal", () => {
+    // Both were real false positives from a live run — "AI" is marketing vocabulary
+    // now, so it has to appear as part of an actual role name.
+    for (const title of ["Go-to-Market Champion (GPU & AI)", "Product Manager, Performance AI"]) {
+      expect(at(title), title).toEqual({ keep: false, reason: "title" });
+    }
+    expect(at("AI Engineer, Inference")).toEqual({ keep: true });
+    expect(at("Research Engineer, Reasoning")).toEqual({ keep: true });
+  });
+
+  it("drops seniority the profile has long passed", () => {
+    for (const title of ["Junior Data Engineer", "Software Engineer, Intern"]) {
+      expect(at(title), title).toEqual({ keep: false, reason: "title" });
+    }
+    // "internal" must not be read as "intern".
+    expect(at("Senior Engineer, Internal Tools")).toEqual({ keep: true });
+  });
+
   it("does not match an engineering term inside a longer word", () => {
     // "ai" must not fire on "Maintenance"; "ml" must not fire on "HTML".
     expect(at("Maintenance Technician")).toEqual({ keep: false, reason: "title" });

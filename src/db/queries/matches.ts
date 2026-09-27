@@ -9,6 +9,7 @@ import {
   type Match,
   type StrengthMatch,
 } from "@/db/schema";
+import { isStale, relativeAge } from "@/lib/age";
 import { htmlToText } from "@/lib/html";
 import type { FitTier } from "@/lib/scoring";
 
@@ -70,6 +71,16 @@ export type MatchRow = {
   location: string | null;
   remote: boolean;
   url: string;
+  /**
+   * How long the role has been open, pre-formatted on the server. Computing it in the
+   * client island would compare the browser's clock to the server's render and
+   * mismatch on hydration. Null when the board published no date.
+   */
+  /** ISO — for sorting. Null when the board published no date. */
+  postedAt: string | null;
+  postedAgeLabel: string | null;
+  /** Open long enough to be an evergreen requisition rather than a new opening. */
+  evergreen: boolean;
   /** Plain text, capped. `descriptionTruncated` says whether anything was cut. */
   description: string;
   descriptionTruncated: boolean;
@@ -94,6 +105,9 @@ export async function listMatchRows(limit = 200, profileVersion?: number): Promi
     .orderBy(desc(matches.overall), desc(matches.scoredAt))
     .limit(limit);
 
+  // One instant for the whole page, so two rows of the same age never disagree.
+  const now = new Date();
+
   return rows.map(({ matches: m, jobs: j }) => {
     const text = htmlToText(j.description ?? "");
     return {
@@ -114,6 +128,9 @@ export async function listMatchRows(limit = 200, profileVersion?: number): Promi
       location: j.location,
       remote: j.remote,
       url: j.url,
+      postedAt: j.postedAt?.toISOString() ?? null,
+      postedAgeLabel: relativeAge(j.postedAt, now),
+      evergreen: isStale(j.postedAt, 180, now),
       description: text.slice(0, MAX_DESCRIPTION_CHARS),
       descriptionTruncated: text.length > MAX_DESCRIPTION_CHARS,
     };

@@ -718,3 +718,50 @@ keyless aggregators instead.
 **Rule.** "It returns 200" answers whether you *can*, which is the less important
 question. Weigh the blast radius against the person the tool serves, not against the
 tool.
+
+---
+
+## 2026-09-27 09:17 — A count without its window is a claim, not a number
+
+**Problem.** "4,093 jobs stored" was read — reasonably — as "4,093 jobs posted today
+that match precisely". None of those three things was true, and the phrasing invited
+all three.
+
+**Root cause.** Three conflations in one figure. **Time:** an ATS board returns every
+open requisition, not new ones, so a first run captures the standing market — only 119
+of 4,182 were posted in 24h and the oldest dated 2009. **Identity:** dedupe is
+`(source_id, external_id)`, so one role advertised in 14 cities is 14 rows. **Meaning:**
+the relevance gate is a coarse pre-filter, so its output is a queue depth, not a
+verdict — the scoring stage had not run at all.
+
+**Fix.** A freshness window on the Jobs screen defaulting to 48h with per-window counts;
+role collapse at ingest; and reporting the gate's output as "worth spending a token on"
+rather than as a result.
+
+**Rule.** When you report a count, report the window, the unit of identity, and what
+decided membership. A bare number inherits whatever the reader assumes, and they will
+assume the flattering reading. The same care that goes into measuring has to go into
+saying what was measured.
+
+---
+
+## 2026-09-27 09:17 — Rendering the page is a test the test suite cannot run
+
+**Problem.** The Jobs screen shipped with 261 tests green, lint and typecheck clean, and
+two defects visible in the first ten lines of rendered output: the header claimed "200
+posted in the last 48 hours" when there were 458, and the list contained "Go-to-Market
+Champion (GPU & AI)" and "Product Manager, Performance AI".
+
+**Root cause.** The header printed `jobs.length`, which is the **page cap** (`limit=200`),
+not the count for the window — correct code, wrong quantity, and nothing type-checks the
+difference between two numbers of the same type. The false positives came from bare `ai`
+and `ml` in the vocabulary, which are marketing words now; the unit tests asserted the
+terms I thought to doubt, and I had not doubted those.
+
+**Fix.** Report `counts[window]` and say "Showing the first N" when the cap bites. Drop
+bare `ai`/`ml` in favour of `ai engineer`, `ai ml`, `ml engineer`, `ai researcher`. Both
+now have tests, written *after* the render showed what to write.
+
+**Rule.** Render it against real data before calling it done. A unit test proves the
+cases you thought of; the first screen of real output shows you the ones you did not.
+For anything with a filter or a count, that pass is not optional.
