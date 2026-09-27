@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, notExists, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, notExists, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -13,7 +13,7 @@ import {
 import { isStale, relativeAge } from "@/lib/age";
 import { capPerCompany } from "@/lib/queue";
 import { htmlToText } from "@/lib/html";
-import type { FitTier } from "@/lib/scoring";
+import { MIN_FOR_RANK, TIER_SHARES, type FitTier } from "@/lib/scoring";
 
 export type MatchWithJob = Match & { job: Job };
 
@@ -226,4 +226,87 @@ export async function getMatchCounts(profileId: string) {
     .where(eq(matches.profileId, profileId));
 
   return row ?? { total: 0, strong: 0, possible: 0, scoredToday: 0 };
+}
+
+/**
+ * Re-tier every match for a profile by rank.
+ *
+ * One statement: a window function ranks the profile's matches by score, and each row
+ * takes the tier its percentile earns. Doing it in SQL rather than in a loop matters —
+ * a tier depends on the whole population, so reading rows and writing them back one at
+ * a time would be both slow and wrong the moment two runs overlap.
+ *
+ * Skipped below `MIN_FOR_RANK`: with a handful of matches a percentile says nothing,
+ * and the absolute thresholds `fitTier` already applied are the better answer.
+ *
+ * `is distinct from` so only rows that actually change are written — on a steady
+ * corpus most runs move a handful, and an UPDATE touching every row would churn the
+ * table for nothing.
+ */
+export async function recalibrateTiers(
+  profileId: string,
+): Promise<{ scored: number; changed: number; skipped?: string }> {
+  const [count] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(matches)
+    .where(eq(matches.profileId, profileId));
+
+  const scored = count?.n ?? 0;
+  if (scored < MIN_FOR_RANK) {
+    return { scored, changed: 0, skipped: `only ${scored} matches — too few to rank` };
+  }
+
+  // Rank on the overall score, then on the five dimensions as a tie-break.
+  //
+  // The model emits a coarse scale — 293 matches across 48 distinct scores, with 26
+  // tied at exactly 86, which is where the 15% line falls. Ties share a percentile,
+  // so without a second key the whole cluster crosses together and "top 15%" becomes
+  // 21%. The dimensions do vary inside a tied score (18 distinct sums among those 26),
+  // so this separates them on evidence rather than on row order.
+  const rank = sql`
+    percent_rank() over (
+      order by overall desc,
+        (
+          coalesce((dimensions->>'role_fit')::int, 0) +
+          coalesce((dimensions->>'seniority_fit')::int, 0) +
+          coalesce((dimensions->>'tech_fit')::int, 0) +
+          coalesce((dimensions->>'location_fit')::int, 0) +
+          coalesce((dimensions->>'company_fit')::int, 0)
+        ) desc
+    )`;
+
+  const rows = await db.execute(sql`
+    update ${matches} as m
+    set tier = ranked.tier
+    from (
+      select
+        id,
+        (case
+          when ${rank} < ${TIER_SHARES.strong} then 'strong'
+          when ${rank} < ${TIER_SHARES.possible} then 'possible'
+          else 'stretch'
+        end)::match_tier as tier
+      from ${matches}
+      where profile_id = ${profileId}
+    ) as ranked
+    where m.id = ranked.id and m.tier is distinct from ranked.tier
+  `);
+
+  return { scored, changed: rows.count ?? 0 };
+}
+
+/** How many of these jobs are strong for this profile — read after re-ranking. */
+export async function countStrongAmong(profileId: string, jobIds: string[]): Promise<number> {
+  if (jobIds.length === 0) return 0;
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(matches)
+    .where(
+      and(
+        eq(matches.profileId, profileId),
+        eq(matches.tier, "strong"),
+        inArray(matches.jobId, jobIds),
+      ),
+    );
+  return row?.n ?? 0;
 }

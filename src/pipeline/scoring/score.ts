@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "@/db";
-import { getUnscoredJobs } from "@/db/queries/matches";
+import { countStrongAmong, getUnscoredJobs, recalibrateTiers } from "@/db/queries/matches";
 import { getCurrentProfile } from "@/db/queries/profile";
 import { matches, type Job } from "@/db/schema";
 import {
@@ -100,7 +100,7 @@ export async function runScore({
         profileId: profile.id,
         validStrengthKeys,
       });
-      return { ok: true as const, usage: result.usage, tier: result.tier };
+      return { ok: true as const, jobId: job.id, usage: result.usage, tier: result.tier };
     } catch (error) {
       const message = isLlmError(error)
         ? `${error.kind}: ${error.message}`
@@ -112,16 +112,34 @@ export async function runScore({
     }
   });
 
+  const scoredJobIds: string[] = [];
   for (const outcome of outcomes) {
     if (outcome.ok) {
       summary.scored += 1;
-      if (outcome.tier === "strong") summary.strong += 1;
+      scoredJobIds.push(outcome.jobId);
       totals = addUsage(totals, outcome.usage);
     } else {
       summary.failed += 1;
       summary.errors.push({ jobId: outcome.jobId, message: outcome.message });
     }
   }
+
+  // Tiers are a property of the whole population, so they can only be settled once
+  // every job in this run has a score. Each row was inserted with the absolute-
+  // threshold tier so it is never null; this replaces it with the ranked one.
+  const calibration = await recalibrateTiers(profile.id);
+  if (calibration.skipped) {
+    logger.info({ reason: calibration.skipped }, "tiers left on absolute thresholds");
+  } else {
+    logger.info(
+      { scored: calibration.scored, changed: calibration.changed },
+      "tiers recalibrated by rank",
+    );
+  }
+
+  // Counted after ranking, not during: "6 strong" has to mean what the screen will
+  // show, and before the re-rank it means what a threshold happened to say.
+  summary.strong = await countStrongAmong(profile.id, scoredJobIds);
 
   summary.tokensIn = totals.inputTokens;
   summary.tokensOut = totals.outputTokens;

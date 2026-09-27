@@ -1035,3 +1035,44 @@ operation. The scoping is the query, so call order cannot break it.
 is a convention. Make the safe thing the only reachable thing: fetch *through* the
 owner rather than checking and then fetching. And write the structural test — it is
 what noticed that a fix which looked complete was not.
+
+---
+
+## 2026-09-27 19:50 — An LLM's score is ordinal, not cardinal
+
+**Problem.** Fit tiers used absolute thresholds (`>= 85` is strong). 21% of matches
+came out strong and every slot in the queue was one, so the label sorted nothing.
+
+**Root cause.** The model does not use the range. Across 293 matches it emitted **48
+distinct scores**, 112 of them between 80 and 90 — so any threshold is a line through
+a spike, and roles a point apart land in different tiers on a number that was
+essentially a guess. Worse, the number is a property of *that model with that prompt*:
+change either and every tier shifts, silently.
+
+**Fix.** Tier by rank. Top 15% is strong by definition, so the label cannot drift, and
+a different model producing different numbers but a similar ordering changes nothing.
+
+**Rule.** Treat an LLM's numeric score as ordinal — trust the ordering, not the value.
+Anywhere a raw model score is compared against a constant, that constant is a
+calibration of one model's habits and will rot when the model changes.
+
+---
+
+## 2026-09-27 19:50 — Ties are indivisible, so quotas overshoot
+
+**Problem.** "Top 15%" produced 21%.
+
+**Root cause.** `percent_rank()` gives tied rows one shared percentile — which is right,
+since splitting equal scores by row order would make the boundary arbitrary exactly
+where it matters. But 26 matches were tied at 86, precisely where the 15% line falls,
+so all 26 crossed together.
+
+**Fix.** Rank on a second key that carries real signal: the sum of the five fit
+dimensions, which varies inside a tied score (18 distinct sums among those 26). Not
+`ntile`, which splits ties arbitrarily, and not a coarser bucket, which hides the
+problem.
+
+**Rule.** A percentile quota is only as precise as the data is granular. Before
+trusting one, count the distinct values — if the population clusters, decide
+deliberately whether to break ties on evidence or to accept that the share is
+approximate. Silently arbitrary tie-breaking is the one option to rule out.

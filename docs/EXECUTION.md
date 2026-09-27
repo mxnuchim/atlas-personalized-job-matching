@@ -1510,3 +1510,45 @@ forward, nothing to leak, one fewer field in the form, and self-documenting.
 `src/db/queries/{profile,users}.ts`, `src/components/{avatar,avatar.test,profile-importer}.tsx`,
 `src/app/signup/*`, `src/app/login/{page,login-form}.tsx`,
 `src/app/(app)/profile/*`, `src/components/app-nav.tsx`, `.env.example`, `docs/DEPLOY.md`
+
+---
+
+## 2026-09-27 19:50 — Tiers by rank, not by threshold
+
+**Context.** 21% of matches were `strong` and the whole queue was strong, so the label
+sorted nothing. The user's framing was the right one: *"We should always be able to
+change models. Model tie-in in a project like this is poor architecture."* An absolute
+threshold is exactly that tie-in — it hard-codes one model's scoring habits.
+
+**Why a threshold could not be fixed by moving it.** Measured on 293 real matches:
+**48 distinct scores**, 112 of them in the 80–90 band. The old `>= 85` line cut through
+the densest part. Raise it to 90 and six matches are strong; lower it and hundreds are.
+There is no good place to put a line through a spike.
+
+**Action.** `tierByRank(percentile)` with `TIER_SHARES` — top 15% strong, next 35%
+possible, bottom half stretch. `recalibrateTiers(profileId)` re-tiers a whole profile
+in one statement with a window function, and `runScore` calls it after every run, since
+a tier depends on the population and cannot be settled per row. Below `MIN_FOR_RANK`
+(25) it skips and leaves the absolute thresholds: with five matches a percentile says
+nothing.
+
+**The first attempt landed at 21%, not 15%.** `percent_rank()` gives tied scores one
+shared value — correct, since splitting equal scores by row order is arbitrary — but
+**26 matches were tied at exactly 86**, which is where the 15% line falls, so the whole
+cluster crossed together.
+
+The fix is a tie-break with actual signal rather than a coarser bucket: rank on
+`overall`, then on the sum of the five fit dimensions. Those genuinely vary inside a
+tied score — 18 distinct sums among the 26 at 86 — so it separates on evidence.
+
+**Result.** strong **45 (15%)**, possible 101 (34%), stretch 147 (50%), exactly as
+specified, and now true by construction rather than by luck. 339 tests green; lint,
+typecheck and build clean.
+
+**Honest note.** Today's queue is still 20 of 20 strong — but that is now correct
+rather than a symptom. There are 45 strong matches and the queue shows the best 20 of
+them. "Strong" being scarce is what changed; the queue showing your best is what it is
+for.
+
+**Files.** `src/lib/scoring.ts` + test, `src/db/queries/matches.ts`,
+`src/pipeline/scoring/score.ts`
