@@ -1,8 +1,9 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { useEffect } from "react";
+import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 
-import { SPRING } from "@/lib/motion";
+import { DURATION, EASE, SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { FitTier } from "@/lib/scoring";
 
@@ -79,6 +80,23 @@ export function FitGauge({ value, tier, size = "sm", delay = 0, className }: Fit
     stroke,
   );
 
+  // The digits count up in step with the arc — a tween, not a spring, so the number
+  // never overshoots its own value on the way to settling.
+  const count = useMotionValue(reduced ? clamped : 0);
+  const display = useTransform(count, (v) => Math.round(v).toString());
+  useEffect(() => {
+    if (reduced) {
+      count.set(clamped);
+      return;
+    }
+    const controls = animate(count, clamped, {
+      duration: DURATION.slow * 2,
+      ease: EASE.emphasized,
+      delay,
+    });
+    return () => controls.stop();
+  }, [clamped, reduced, delay, count]);
+
   return (
     <div
       className={cn("relative shrink-0", cls, className)}
@@ -123,15 +141,15 @@ export function FitGauge({ value, tier, size = "sm", delay = 0, className }: Fit
         />
       </svg>
 
-      <span
+      <motion.span
         className={cn(
           "font-display absolute inset-0 flex items-center justify-center tabular-nums",
           text,
         )}
         style={{ color: `var(--tier-${tier})` }}
       >
-        {clamped}
-      </span>
+        {display}
+      </motion.span>
     </div>
   );
 }

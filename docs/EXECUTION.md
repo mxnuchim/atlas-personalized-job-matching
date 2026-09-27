@@ -715,3 +715,44 @@ tabs, buttons render across variants/sizes, dark mode holds.
 **Result.** 149 tests green; lint, typecheck and build clean.
 
 **Files.** `src/components/ui/button.tsx`, `src/components/app-nav.tsx`
+
+---
+
+## 2026-09-27 01:35 — M6 phase 3: signature moments
+
+**Context.** The moments that carry the premium feel: the score animating, and the review queue
+becoming keyboard-driven.
+
+**Action.**
+
+- **Gauge count-up** (`fit-gauge.tsx`) — the digits now count up in step with the arc sweep,
+  driven by a `useMotionValue` tween (not a spring, so the number never overshoots its own
+  value). It appears everywhere the gauge does — Today, the matches table, the drawer, the review
+  queue. Reduced-motion sets the value instantly.
+- **Review-queue keyboard** (`review-queue.tsx`) — `j`/`k` move between cards, `a` approves
+  (or marks sent), `s` skips, `e` edits; shortcuts stay inert while a field is focused. Editing
+  is now controlled at the queue level, so `e` and the Edit button open the same textarea, and
+  each card carries a roving tabindex + visible focus ring like the matches table. Its
+  enter/exit/layout motion moved onto the shared tokens (`TRANSITION.exit`, `SPRING.soft`).
+- Reconciled INTERFACE: gauge count-up, press feedback and the nav slide are now ✓; the
+  review-queue-keyboard open item is resolved and the matches-table `a`/`s`/`e` item reframed
+  as by-design (a match is navigated, not approved).
+
+**Verification.** In the `/preview` gallery: gauges render their values, and `j` then `e` moved
+focus to the second card and opened its editor (focused textarea, Save/Cancel). 149 tests green;
+lint, typecheck and build clean.
+
+**Review addendum.** Driving it independently found one gap: `e` opened the editor but
+`esc` did nothing, so once you were in the textarea the only way out was clicking Cancel
+— a keyboard-first queue you cannot leave by keyboard. `esc` now discards and returns
+focus to the card (dropping focus on `<body>` would silently kill `j`/`k`, the same trap
+the match drawer had), and the hint line advertises it.
+
+Two things checked and found *correct*, worth recording so they are not re-litigated:
+the typing guard genuinely holds — `s`, `j` and `a` all type into the textarea rather
+than firing — and all seven gauges land exactly on their `aria-label` values. An earlier
+pass that dispatched synthetic `KeyboardEvent`s appeared to show the textarea unfocused
+after `e`; that was an artifact of synthetic dispatch, not a defect. Real keystrokes
+focus it correctly.
+
+**Files.** `src/components/{fit-gauge,review-queue}.tsx`, `docs/INTERFACE.md`

@@ -105,17 +105,18 @@ The permitted set (✓ built · ◇ M6 target):
 
 1. ✓ **One orchestrated reveal** — Today's top matches stagger in once on load (`match-card.tsx`,
    `REVEAL` + `TRANSITION.enter`, `STAGGER_STEP`). Once, on first paint only.
-2. ✓ **Score gauge sweeps 0 → value once** (`fit-gauge.tsx`, `SPRING.gauge`). ◇ number counts up
-   with it.
+2. ✓ **Score gauge sweeps 0 → value once** (`fit-gauge.tsx`, `SPRING.gauge`), with the number
+   counting up in step — a tween, so it never overshoots its own value on the way to settling.
 3. ✓ **Optimistic status flips with rollback** — approve/skip in `review-queue.tsx` via
    `useOptimistic`; the row's disappearance *is* the confirmation (no second success animation).
-4. ◇ **Press feedback** on every interactive control (`PRESSABLE`, scale ~0.97, spring back).
+4. ✓ **Press feedback** on interactive controls (`ui/button.tsx`: dip + scale 0.98 on the shared curve).
 5. ◇ **Hover** only where it means something (rows, cards, links) — a quiet lift/tint.
 6. ◇ **Focus-visible** rings animate in; inputs transition on focus.
-7. ◇ **Nav active indicator slides** between tabs (shared `layoutId`), never cuts.
+7. ✓ **Nav active indicator slides** between tabs (`app-nav.tsx`, shared `layoutId`, `SPRING.snappy`).
 8. ◇ **Match drawer opens as a shared-element transition** from its row — the signature moment.
-9. ◇ **List choreography** — approve/skip collapses height and neighbors settle; matches re-sort
-   smoothly (layout animations).
+9. ✓ **List choreography** — the review queue collapses a decided card and its neighbors settle
+   (`review-queue.tsx`, layout + exit). The matches table is left still by design: a 200-row `<tr>`
+   list that re-sorts under motion is the §7 "fade-up on every row" anti-pattern.
 10. ◇ **Route/page transitions** — a fast, subtle cross-fade/settle; no flash.
 11. ◇ **Toasts** — choreographed enter/exit and stacking.
 12. ✓ **Skeletons, never spinners.** Content transitions in, no pop.
@@ -163,8 +164,14 @@ Responsive to mobile · visible keyboard focus (`outline-ring/50` is applied glo
 `@layer base`) · `prefers-reduced-motion` respected · WCAG AA contrast · no layout shift ·
 optimistic UI with rollback.
 
-**Keyboard-first on Matches** (PRD §10.3): `j`/`k` move, `enter` opens, `a` approves,
-`s` skips, `e` edits. Focus states always visible.
+**Keyboard-first** (PRD §10.3). Matches: `j`/`k` move, `enter` opens the drawer.
+Review: `j`/`k` move, `a` approves (or marks sent), `s` skips, `e` edits, `esc` cancels.
+Focus states always visible.
+
+**A keyboard path must be exitable by keyboard.** Any control that captures typing —
+the draft editor, the matches filter — takes `esc` to leave, and hands focus back to the
+element it came from. Dropping focus on `<body>` silently kills `j`/`k`, which is the
+same trap the match drawer had before `onCloseAutoFocus`.
 
 ---
 
@@ -201,7 +208,7 @@ These are not style preferences — they decide where code goes.
 | `matches-table` | client | The console table. Sort, filter, roving tabindex, `j`/`k`/`enter`/`/` |
 | `match-drawer` | client | Radix Dialog as a right sheet. The one component with a real shadow |
 | `match-card` | client | A top match on Today. Gauge + why-you + strength chips + red flags. Participates in the orchestrated reveal |
-| `review-queue` | client | The draft queue. Inline edit, optimistic approve/skip with rollback, and the guardrail readout |
+| `review-queue` | client | The draft queue. Keyboard-driven (`j`/`k`/`a`/`s`/`e`/`esc`), inline edit, optimistic approve/skip with rollback |
 | `app-nav` | client | Needs `usePathname()` for active state; sets `aria-current="page"` |
 | `theme-toggle` | client | Renders both icons and swaps with `dark:hidden`/`dark:block` to avoid hydration mismatch |
 | `user-menu` | client | Radix dropdown; sign-out is a `<form action={signOutAction}>` |
@@ -230,11 +237,10 @@ Known inconsistencies. Fix when you're next in the file; don't add to them.
 - **`--sidebar-*` and `--chart-*` token families are unused.** There is no sidebar (nav
   is a horizontal header) and no charts. Leave them until a real need appears, then
   either use or delete — don't half-adopt.
-- **The match drawer still has no actions.** Approve / skip / edit live on `/review`;
-  the `a` / `s` / `e` shortcuts §10.3 reserves for the matches table are unimplemented.
+- **The matches table has no `a`/`s`/`e` shortcuts — by design.** A match is not approved or
+  skipped; that is the review queue, which now drives `a`/`s`/`e` (M6 phase 3). The table stays
+  navigation-only (`j`/`k`/`enter`/`/`), and the drawer's one action is "Open original".
 - **Pipeline screen is still a static shell.** `outreach` has no queries (M4).
-- **The review queue is not keyboard-driven.** §10.3 reserves `a` / `s` / `e`; today it
-  is pointer- and tab-driven only.
 - **Strength chips in the Cites block do not cap.** Five strengths become five rows on a
   phone. Today's card caps at four; this one deliberately does not, because a draft is
   read closely rather than scanned — revisit if it grows further.
