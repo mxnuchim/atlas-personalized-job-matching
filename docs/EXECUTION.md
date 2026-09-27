@@ -808,3 +808,55 @@ navigation. And the nav buttons it flagged were the gallery's mock markup, not t
 `src/app/globals.css`, `src/components/{tier-chip,fit-gauge}.tsx`,
 `src/app/(app)/today/page.tsx`, `src/components/{review-queue,match-drawer,ui/button}.tsx`,
 `docs/INTERFACE.md`
+
+---
+
+## 2026-09-27 07:31 — Review: the two M6 loose ends, sources, and Vercel
+
+**Context.** No code change. A question-answering pass over four things: why outreach
+stalls at `sent`, why the matches drawer has no actions, why no Nigerian roles appear,
+and whether Atlas can run on Vercel. Recorded here because the answers are the kind a
+fresh session would otherwise re-derive by reading the same eight files.
+
+**Findings.**
+
+*Outreach is a state machine with one transition.* `outreach_status` has eight values;
+only `sent` is reachable. `recordSend` (called from `review/actions.ts`) is the single
+writer and hard-codes it. `markReplied` exists in `db/queries/outreach.ts` and is called
+from nowhere. Because rows are created at send time, `drafted` is structurally always
+zero — the funnel's first column cannot be non-zero. The §11 reply guard (`hasReplied`)
+is therefore inert: nothing can set `replied`. The fix that resolves both at once is to
+create the outreach row when the draft is *written*, so every match has one row from the
+start and the drawer has something to act on. Needs no migration.
+
+*The drawer is read-only.* Its only control is "Open original". The missing concept is a
+per-match dismissal — nothing in the schema records "not interested", which is why a
+rejected match returns to the top of the list forever. Under the unification above it is
+an outreach row at `closed`. Also: `MatchRow` carries no `draftId`, so the drawer cannot
+link to or act on a draft without a join added to `listMatches`.
+
+*`notified` is dropped by the route, not missing from the pipeline.* `runPipeline`
+returns it (`run.ts:90`); `api/pipeline/run/route.ts` destructures five of the six fields
+and omits it from the response. This is the `KeyError: 'notified'` left open at M5.
+
+*No Nigerian roles is an ingest gap, not a scoring gap.* The profile carries
+`Port Harcourt, Nigeria (base)` and `location_fit` is a scored dimension, so such a role
+would score correctly. But the only source is Vercel's Greenhouse board, and Greenhouse
+is per-company — there is no query or geography parameter, so Atlas only ever sees boards
+explicitly added. `lever`/`ashby`/`rss`/`api` are enum values with no fetcher. There is
+also no `/sources` screen: adding a board today means an SQL insert or editing `seed.ts`.
+
+*Vercel: the app yes, the pipeline no.* Deploys as-is (App Router, JWT sessions,
+`trustHost: true`, native deps already in `serverExternalPackages`). Five blockers:
+hosted Postgres with `max` dropped from 5 to 1 for serverless; nothing runs migrations on
+deploy; the pipeline route does ingest + 50 scorings + 20 draftings in one request and
+will exceed any function ceiling; Vercel Cron on Hobby is once-daily so the 06:00/14:00
+schedule needs Pro (GitHub Actions is better anyway — `schedule.test.ts` guards it from
+drift); and `APP_URL` must be set or notification links point at localhost.
+Recommendation: run the batch in GitHub Actions against the database and let Vercel serve
+UI only. The `lib/llm` boundary holds either way.
+
+**Result.** Nothing implemented — a deliberate answer-only pass. `atlas-candidate-profile.md`
+is committed at the repo root and not gitignored; worth checking the repo is private.
+
+**Files.** None under `src/`.

@@ -620,3 +620,38 @@ seconds what computed-style archaeology had muddied for several minutes.
 **Rule.** Test focus the way a keyboard user produces it. And when a DOM measurement
 disagrees with what a screenshot would show, take the screenshot — for anything visual,
 the render is the ground truth and the measurement is the proxy.
+
+---
+
+## 2026-09-27 07:31 — The docs hook counts reading a file as changing it
+
+**Problem.** A turn that wrote no code at all — pure `cat`/`sed -n`/`grep` while
+answering questions — was blocked by the `Stop` hook for "changed code under src/ but
+has not updated the docs ledger". Third false positive from this hook, and the first
+that fires on *every* investigative turn rather than occasionally.
+
+**Root cause.** `record-touch.sh` scans the Bash command text for
+`src/….(ts|tsx|css)` and marks the session dirty on any match. It never asks whether
+the path was being *written*. `cat src/lib/env.ts` matches. Under an agent instructed
+to read files with shell tools, essentially every turn matches. The mirror image is
+there too: the docs-win branch clears the debt on any mention of the ledger, so
+`cat docs/EXECUTION.md` — a read — settles a debt it never paid.
+
+**Fix.** Split the signals. `Write`/`Edit` name a `file_path` and those tools never
+read, so the path alone is proof of a write. A Bash command counts only when the path
+sits in a *writing position* — a redirect target, or the operand of `sed -i`/`tee`/
+`cp`/`mv`/`rm`/`touch` — plus a separate clause for formatters (`prettier --write`,
+`--fix`, `lint:fix`, `npm run format`) which rewrite source without naming a file.
+Same test applied to the docs branch. Verified against 15 commands, reads and writes
+in both directions, before installing.
+
+*Not yet applied* — writing to `.claude/hooks/` is self-modification and was denied.
+The tested patch is in the session; it needs a human to approve it.
+
+**Rule.** A guard that cannot distinguish reading from writing will fire on every turn,
+and a guard that fires on every turn is noise that trains you to dismiss it — strictly
+worse than no guard, because it also carries authority. When a hook blocks, check the
+premise before complying: `state.sh` keeps its evidence in `$TMPDIR/atlas-docs-hook`,
+and the regex can be replayed against a sample command in one line. Three of this
+hook's four bugs were pattern-matching mistakes, which is the argument for testing the
+*matcher* against real payloads rather than only testing that the script runs.
