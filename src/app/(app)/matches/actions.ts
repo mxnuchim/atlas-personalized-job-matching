@@ -43,6 +43,34 @@ export async function draftMatchAction(input: unknown): Promise<ActionResult> {
 }
 
 /**
+ * Record that you applied. Moves the role to `sent` — Atlas never sends anything
+ * itself, so this is you telling it what you did, which is what keeps the tracker
+ * honest and clears the role out of tomorrow's queue.
+ */
+export async function markAppliedAction(input: unknown): Promise<ActionResult> {
+  await requireSession();
+
+  const parsed = matchSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "That match reference is not valid." };
+
+  await openOutreach(parsed.data.matchId);
+  const row = await getOutreachForMatch(parsed.data.matchId);
+  if (!row) return { ok: false, error: "Could not record that. Try again." };
+
+  if (row.status !== "drafted") {
+    return { ok: false, error: `This role is already ${row.status}.` };
+  }
+
+  const updated = await setOutreachStatus(row.id, "sent");
+  if (!updated) return { ok: false, error: "Could not record that. Try again." };
+
+  logger.info({ matchId: parsed.data.matchId }, "marked applied");
+  revalidatePath("/today");
+  revalidatePath("/pipeline");
+  return { ok: true, message: "Tracked. It will not come back tomorrow." };
+}
+
+/**
  * Take a role off the table. Recorded as outreach at `closed` rather than a new
  * column: the funnel already has an ending, and one state machine per match is easier
  * to reason about than a dismissal flag sitting beside it.

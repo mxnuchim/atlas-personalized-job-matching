@@ -32,8 +32,11 @@ describe("reasoningOptions", () => {
 
   it("orders the budget the same way the effort levels are ordered", () => {
     const budget = (e: "minimal" | "low" | "medium" | "high") =>
-      (reasoningOptions(e).providerOptions?.google as { thinkingConfig: { thinkingBudget: number } })
-        .thinkingConfig.thinkingBudget;
+      (
+        reasoningOptions(e).providerOptions?.google as {
+          thinkingConfig: { thinkingBudget: number };
+        }
+      ).thinkingConfig.thinkingBudget;
 
     expect(budget("minimal")).toBeLessThan(budget("low"));
     expect(budget("low")).toBeLessThan(budget("medium"));

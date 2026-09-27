@@ -1102,3 +1102,45 @@ predated outreach rows, so the tracker was empty; backfilled at `drafted`.
 `src/db/queries/{sources,outreach,drafts,runs}.ts`, `src/db/queries/outreach.test.ts`,
 `src/db/schema/runs.ts`, `src/pipeline/{ingest,run}.ts`, `src/pipeline/drafting/draft.ts`,
 `src/lib/notify.ts`, `src/components/app-nav.tsx`, `drizzle/0007_useful_spitfire.sql`
+
+---
+
+## 2026-09-27 16:40 — A daily queue instead of a firehose
+
+**Context.** 292 matches scored, 62 strong, and **zero sent**. The user's read was
+correct: nobody applies to four hundred roles, so producing more of them is not
+progress. The constraint is applications per day — ten to twenty — not coverage.
+
+**Action.**
+
+*Cadence.* `RUN_HOURS` dropped from `[6, 14]` to `[6]`. A second daily run added cost
+and noise without adding anything anyone had time to act on.
+
+*The queue.* Today is now a capped list (`DAILY_QUEUE_SIZE`, default 15) of the
+best matches **not yet acted on** — no outreach row, or one still at `drafted`. Each
+row has "I applied" (→ `sent`) and "Not interested" (→ `closed`), which remove it
+optimistically. The point is that it empties: a list nobody can finish gets skimmed
+and then ignored, which is the failure this screen exists to avoid. A second stat says
+how many are waiting behind it, so the cap is visible rather than a silent truncation.
+
+*Fetch now.* A button on Today runs the pipeline on demand, scoring
+`DAILY_QUEUE_SIZE * 2` and skipping drafting. It states that it takes minutes before
+you press it — scoring runs at about seven roles a minute, and a button that looks
+instant and is not reads as broken.
+
+**A latent bug the drift test caught — mine.** I regenerated the cron for
+`Africa/Lagos` and committed `0 5 * * *`. `.env.local` actually sets `TZ="UTC"`, so the
+correct line is `0 6 * * *`; `schedule.test.ts` failed immediately and named both
+values. This is the second time that guard has paid for itself.
+
+**Result.** 288 tests green; lint, typecheck and build clean. Verified by rendering:
+Today reports "In today's queue 15 · Waiting behind it 276" with the Fetch now control
+and fifteen actionable rows.
+
+**Observation for later.** The top of the queue is four consecutive SumUp roles — all
+genuinely strong, all one company. Sorting purely by fit lets one employer take a third
+of a fifteen-slot queue. Worth a diversity rule.
+
+**Files.** `src/lib/schedule.ts` + test, `.github/workflows/pipeline.yml`,
+`src/components/{daily-queue,fetch-now}.tsx`, `src/app/(app)/today/{page.tsx,actions.ts}`,
+`src/app/(app)/matches/actions.ts`, `src/db/queries/matches.ts`, `src/lib/env.ts`

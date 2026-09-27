@@ -49,6 +49,13 @@ const envSchema = z.object({
   LOGIN_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
 
   /**
+   * How many roles the day's queue offers at once. The limit is how many a person can
+   * actually apply to in a day, not how many exist — a list of four hundred is the
+   * same as no list at all.
+   */
+  DAILY_QUEUE_SIZE: z.coerce.number().int().min(1).max(100).default(15),
+
+  /**
    * Postings older than this never enter the corpus. A board returns every open
    * requisition, so without a limit a first run ingests years of backlog. 30 days
    * covers the normal life of an open role; widening it is one line and one re-run,

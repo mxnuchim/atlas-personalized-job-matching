@@ -1,13 +1,16 @@
 name: Pipeline
 
-# The scheduler (PRD §6): a cron line, not a broker. Two runs a day for one person
+# The scheduler (PRD §6): a cron line, not a broker. One run a day for one person
 # needs nothing more, and this keeps the schedule outside the app entirely.
+#
+# Once daily, not twice: the limit is how many roles a person can apply to in a day,
+# not how fast postings appear.
 #
 # The hours are UTC — GitHub Actions speaks no other timezone — and are derived from
 # RUN_HOURS in src/lib/schedule.ts. `schedule.test.ts` fails if the two drift apart.
 on:
   schedule:
-    - cron: "0 6,14 * * *"
+    - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
       scoreLimit:

@@ -3,11 +3,12 @@ import Link from "next/link";
 import { InboxIcon } from "lucide-react";
 
 import { CoverageBanner } from "@/components/coverage-banner";
+import { DailyQueue } from "@/components/daily-queue";
+import { FetchNow } from "@/components/fetch-now";
 import { EmptyState } from "@/components/empty-state";
-import { MatchCard } from "@/components/match-card";
 import { PageHeader } from "@/components/page-header";
 import { StatStrip } from "@/components/stat-strip";
-import { getMatchCounts, listMatchRows } from "@/db/queries/matches";
+import { countDailyQueue, getMatchCounts, listDailyQueue } from "@/db/queries/matches";
 import { countJobs } from "@/db/queries/jobs";
 import { getCurrentProfile } from "@/db/queries/profile";
 import { getLastFinishedRun } from "@/db/queries/runs";
@@ -20,13 +21,11 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-/** How many top matches the day's shortlist shows before sending you to the table. */
-const SHORTLIST = 4;
-
 export default async function TodayPage() {
-  const [counts, top, jobCount, profile, lastRun] = await Promise.all([
+  const [counts, queue, waiting, jobCount, profile, lastRun] = await Promise.all([
     getMatchCounts(),
-    listMatchRows(SHORTLIST),
+    listDailyQueue(env.DAILY_QUEUE_SIZE),
+    countDailyQueue(),
     countJobs(),
     getCurrentProfile(),
     getLastFinishedRun(),
@@ -50,22 +49,24 @@ export default async function TodayPage() {
 
       <StatStrip
         items={[
-          { label: "Scored today", value: String(counts.scoredToday) },
-          { label: "Strong matches", value: String(counts.strong) },
+          { label: "In today's queue", value: String(queue.length) },
+          { label: "Waiting behind it", value: String(Math.max(0, waiting - queue.length)) },
           { label: "Postings tracked", value: String(jobCount) },
         ]}
       />
 
-      {top.length === 0 ? (
+      <FetchNow nextRun={nextRun} />
+
+      {waiting === 0 && queue.length === 0 ? (
         <EmptyState
           icon={<InboxIcon className="size-7" strokeWidth={1.5} />}
           title="Nothing to review right now"
-          description={`The next run is at ${nextRun}. New matches and their drafts will appear here, ready to approve.`}
+          description={`The next run is at ${nextRun}. New matches will appear here, best fit first.`}
         />
       ) : (
         <section className="space-y-4">
           <div className="flex items-baseline justify-between gap-4">
-            <h2 className="font-display text-base font-semibold">Best fits</h2>
+            <h2 className="font-display text-base font-semibold">Today&rsquo;s queue</h2>
             <Link
               href="/matches"
               className="text-primary-ink focus-visible:ring-ring rounded text-sm hover:underline focus-visible:ring-2 focus-visible:outline-none"
@@ -74,9 +75,7 @@ export default async function TodayPage() {
             </Link>
           </div>
 
-          {top.map((match, index) => (
-            <MatchCard key={match.id} match={match} strengthLabels={strengthLabels} index={index} />
-          ))}
+          <DailyQueue matches={queue} strengthLabels={strengthLabels} waiting={waiting} />
         </section>
       )}
     </div>

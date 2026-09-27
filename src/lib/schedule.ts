@@ -1,8 +1,13 @@
 /**
- * The twice-daily cadence (PRD §4). One definition, shared by the UI (what it tells you
- * about the next run) and by the scheduler check (what the cron actually fires).
+ * The daily cadence. One definition, shared by the UI (what it tells you about the
+ * next run) and by the scheduler check (what the cron actually fires).
+ *
+ * Was twice daily. Dropped to once because the constraint is how many roles a person
+ * can actually apply to in a day — around ten to twenty — not how fast postings
+ * appear. A second run added cost and inbox noise without adding anything anyone had
+ * time to act on.
  */
-export const RUN_HOURS = [6, 14] as const;
+export const RUN_HOURS = [6] as const;
 
 /** The next scheduled hour as "HH:00" in the given timezone. */
 export function nextRunLabel(now: Date = new Date(), timeZone = "UTC"): string {
