@@ -1185,3 +1185,43 @@ domain — anywhere else needs one.
 **Files.** `src/lib/{queue.ts,queue.test.ts,notify.ts,notify.test.ts,env.ts}`,
 `src/db/queries/matches.ts`, `src/pipeline/run.ts`, `src/app/(app)/today/page.tsx`,
 `.env.example`
+
+---
+
+## 2026-09-27 17:36 — Manrope everywhere, and a real email template
+
+**Context.** Two asks: switch the app to Google Sans or Manrope via `next/font/google`,
+and build a polished, cross-client HTML email.
+
+**Google Sans is not available.** It is Google's proprietary UI font, not distributed
+through Google Fonts, so `next/font/google` cannot serve it. Manrope was the other
+option and is a good one.
+
+**Action.**
+
+*Type.* Manrope replaces both Geist Sans and Space Grotesk — its heavier weights carry
+a display line, so a second family earned nothing. Self-hosted and subsetted by
+`next/font`, so no render-blocking request and no layout shift. The `geist` dependency
+is removed. One trap: `next/font`'s `variable` sets a custom property on `<html>`, so
+mapping `--font-sans: var(--font-sans)` inside `@theme inline` is circular — the token
+is `--font-manrope`. Geist's `cv02/cv03/cv11` character variants meant nothing to
+Manrope and were replaced with `lining-nums`.
+
+*Email.* Split delivery from presentation: `src/lib/email.ts` is a pure template with
+no `server-only`, `notify.ts` only sends. XHTML doctype, 600px table layout, inline
+styles for everything load-bearing, VML button for Outlook, hidden preheader, no images
+at all, and a `@media (prefers-color-scheme: dark)` block. Colours are copied from
+`globals.css` as literals, since an email cannot read CSS variables.
+
+**What rendering caught.** In dark mode every job title was black on a near-black card.
+The heading and company names were fine. The dark block flips colours by class, and the
+row titles carried only an inline colour — email has no inheritance to fall back on.
+Nineteen passing assertions did not see it; one screenshot did. Fixed by giving every
+element that states a colour the matching class.
+
+**Result.** 295 tests green; lint, typecheck and build clean. Verified in light, dark
+and at 375px, across the full, degraded and empty states. Rendered sizes are 5.3–13.6 KB,
+well under Gmail's ~102 KB clipping threshold.
+
+**Files.** `src/app/layout.tsx`, `src/app/globals.css`, `src/lib/{email.ts,email.test.ts,notify.ts}`,
+`src/pipeline/run.ts`, `package.json`, `docs/INTERFACE.md`

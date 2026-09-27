@@ -901,3 +901,23 @@ score each one.
 **Rule.** Benchmark a cost optimisation on its output, not just its price. If the
 cheaper setting produces different answers, you have not found a saving — you have
 found a second, undocumented configuration of the product.
+
+---
+
+## 2026-09-27 17:36 — Dark mode in email is opt-in per element, not per container
+
+**Problem.** The daily email's dark variant rendered every job title black on a near
+black card. The heading and the company names were fine; only the titles vanished.
+
+**Root cause.** The `@media (prefers-color-scheme: dark)` block flips colours by class
+— `.ink`, `.muted`, `.hairline`. The card carried `.card`, so its background flipped;
+the row titles carried only an inline `color:#16181d`, so they did not. Email has no
+inheritance to fall back on: an inline colour is the final word unless something
+overrides it by class.
+
+**Fix.** Every element that states a colour also states its class. The class flips, the
+inline value is the default for the clients that ignore the block.
+
+**Rule.** In email, dark mode is a property of each element that sets a colour, not of
+the container. And unit tests cannot see this — the assertions all passed. Render the
+thing in both schemes and look at it.

@@ -1,20 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { buildHtml, buildSubject, buildText, type RunNotification } from "./notify";
+import { buildHtml, buildSubject, buildText, type DailyEmailInput } from "./email";
 
-function run(overrides: Partial<RunNotification> = {}): RunNotification {
+function run(overrides: Partial<DailyEmailInput> = {}): DailyEmailInput {
   return {
     newJobs: 0,
     scored: 0,
     strong: 0,
-    drafted: 0,
     errors: 0,
     sourcesOk: 10,
     sourcesTotal: 10,
     queued: 0,
     top: [],
     costUsd: 0,
-    status: "ok",
     appUrl: "https://atlas.test",
     ...overrides,
   };
@@ -78,10 +76,51 @@ describe("buildHtml", () => {
     expect(buildHtml(run())).toContain("https://atlas.test/today");
   });
 
-  it("uses inline styles, since email clients drop stylesheets", () => {
+  it("inlines the load-bearing styles, since Gmail strips stylesheets", () => {
     const html = buildHtml(run({ queued: 1, top: [role("A", "B", 70)] }));
-    expect(html).toContain("style=");
-    expect(html).not.toContain("<link");
+    // Colour, spacing and type all inline; the <style> block only carries the dark
+    // mode and small-screen enhancements, which are allowed to be dropped.
+    expect(html).toMatch(/<td[^>]+style="[^"]*background:/);
+    expect(html).toMatch(/<h1[^>]+style="[^"]*font-family:/);
+  });
+
+  it("does not depend on the web font landing", () => {
+    // Apple Mail honours the @font-face; Gmail and Outlook ignore it. The stack has
+    // to carry the design on its own.
+    const html = buildHtml(run({ queued: 1, top: [role("A", "B", 70)] }));
+    expect(html).toContain("fonts.googleapis.com");
+    expect(html).toContain("-apple-system");
+    expect(html).toContain("Arial");
+  });
+
+  it("lays out in tables, because Outlook renders through Word", () => {
+    const html = buildHtml(run({ queued: 1, top: [role("A", "B", 70)] }));
+    expect(html).toContain('role="presentation"');
+    expect(html).not.toContain("display:flex");
+    expect(html).not.toContain("display:grid");
+  });
+
+  it("gives Outlook a VML button, which ignores padding on anchors", () => {
+    const html = buildHtml(run({ queued: 1, top: [role("A", "B", 70)] }));
+    expect(html).toContain("v:roundrect");
+    expect(html).toContain("<!--[if mso]>");
+  });
+
+  it("carries a preheader so the client does not scrape the wordmark", () => {
+    const html = buildHtml(run({ queued: 3, top: [role("A", "Monzo", 70)] }));
+    expect(html).toContain("Monzo");
+    expect(html).toMatch(/max-height:0/);
+  });
+
+  it("loads no remote images, which every client blocks by default", () => {
+    const html = buildHtml(run({ queued: 2, top: [role("A", "B", 70)] }));
+    expect(html).not.toContain("<img");
+  });
+
+  it("states a colour scheme so dark clients do not invert it themselves", () => {
+    const html = buildHtml(run({ queued: 1 }));
+    expect(html).toContain('name="color-scheme"');
+    expect(html).toContain("prefers-color-scheme: dark");
   });
 
   it("shows the shortfall banner only when coverage was incomplete", () => {

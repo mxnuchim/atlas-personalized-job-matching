@@ -73,7 +73,7 @@ never appears on a button.
 
 | Use | Face | Token |
 |---|---|---|
-| Score, gauge, page titles | **Space Grotesk** | `--font-display` / `.font-display` |
+| Score, gauge, page titles | **Manrope** | `--font-display` / `.font-display` |
 | Body, UI, tabular data | **Geist Sans** | `--font-sans` |
 | Numerals in tables | body face + `tabular-nums` | — |
 
@@ -293,6 +293,32 @@ Breadth is a data problem, not a UI one, but it decides what every screen can sh
 - **A destructive control states what it destroys.** Deleting a source cascades into
   jobs, matches and drafts — invisible from the button — so the confirmation carries the
   row count and the action re-counts server-side and refuses a stale number.
+
+---
+
+## 9c. The daily email
+
+Not the web. The constraints are different enough to be worth stating, and
+`src/lib/email.ts` is pure so the template can be rendered to a file and looked at
+without sending anything.
+
+- **Tables, never flexbox or grid.** Outlook 2016–2021 renders through Word.
+- **Inline styles for anything load-bearing.** Gmail strips `<style>` on forward and
+  clips messages past ~102 KB. The `<style>` block carries only dark mode and the
+  small-screen tweak — enhancements that may be dropped without loss.
+- **No images at all.** Every client blocks remote images by default, so the fit scores
+  are styled table cells, not SVG.
+- **Web fonts are an enhancement.** Apple Mail and iOS honour the Manrope link; Gmail
+  and Outlook get the fallback stack. Nothing may depend on Manrope's metrics.
+- **A VML button for Outlook**, which ignores padding on an anchor.
+- **A preheader**, or the client scrapes the wordmark for the preview line.
+- **Every colour comes from `globals.css`**, copied into `email.ts` as literals — the
+  email cannot import CSS variables, so the values are duplicated deliberately and
+  noted as such.
+- **Dark mode is opt-in per element.** A `.ink` / `.muted` / `.hairline` class *and*
+  the inline colour: the class flips, the inline value is the default. Row titles with
+  only the inline colour rendered black-on-black in dark mode — caught by looking at
+  it, not by a test.
 
 ---
 

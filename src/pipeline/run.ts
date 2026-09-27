@@ -82,7 +82,6 @@ export async function runPipeline(
       newJobs: ingest.inserted,
       scored: scoring.scored,
       strong: scoring.strong,
-      drafted: drafting.drafted,
       errors: errors.length,
       sourcesOk: ingest.sourcesOk,
       sourcesTotal: ingest.sourcesTotal,
@@ -91,9 +90,9 @@ export async function runPipeline(
         title: m.title,
         company: m.company,
         overall: m.overall,
+        tier: m.tier,
       })),
       costUsd: totals.costUsd,
-      status: totals.status,
       appUrl: env.APP_URL,
     });
 

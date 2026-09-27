@@ -14,8 +14,10 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
-  --font-sans: var(--font-geist-sans);
-  --font-display: var(--font-display);
+  --font-sans: var(--font-manrope);
+  /* One family does both jobs; kept as a separate token so display type can diverge
+     later without touching every call site. */
+  --font-display: var(--font-manrope);
   --font-mono: var(--font-mono);
 
   --color-card: var(--card);
@@ -201,7 +203,10 @@
 
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    /* Manrope's lining figures line up in tables without asking, and it has no
+       character variants to opt into — unlike Geist, whose cv02/cv03/cv11 this
+       replaced. */
+    font-variant-numeric: lining-nums;
   }
 
   /* The score/gauge/titles are the type moment — Space Grotesk. */
