@@ -36,12 +36,28 @@ system detection off.
 | accent / `--primary` | `#4c5bd4` | `#4c5bd4` |
 | `--destructive` | `#c6453b` | `#e06a60` |
 
+**Fill vs ink.** A colour vivid enough to carry white text as a *fill* is usually too
+light to *be* text on a pale surface. Every accent therefore has two tokens: the vivid
+one for fills, arcs and rings (judged at 3:1), and a `-ink` variant for text (4.5:1).
+Measured, not eyeballed — `src/lib/a11y/contrast.test.ts` fails the build if any
+shipping pairing drops below AA.
+
+| Role | Fill | Ink (text) |
+|---|---|---|
+| accent | `--primary` | `--primary-ink` |
+| strong | `--tier-strong` | `--tier-strong-ink` |
+| possible | `--tier-possible` | `--tier-possible-ink` |
+| stretch | `--tier-stretch` | `--tier-stretch-ink` |
+
+The one exception is the gauge numeral, which uses the **vivid** token: it is large
+display type, which AA judges at 3:1, and the number should match the arc it sits in.
+
 **Fit tiers** — semantic, not decorative. Use for the score and tier chips only.
 
 | Tier | Light | Dark | Threshold |
 |---|---|---|---|
 | `--tier-strong` | `#2e9e6b` | `#35b57b` | overall ≥ 85 |
-| `--tier-possible` | `#c98a2b` | `#e0a64b` | 65–84 |
+| `--tier-possible` | `#b77d27` | `#e0a64b` | 65–84 |
 | `--tier-stretch` | `#6b7280` | `#8a93a6` | < 65 |
 
 Thresholds are owned by `src/lib/scoring.ts` (`fitTier`, `TIER_LABELS`, `TIER_THRESHOLDS`).
@@ -157,6 +173,25 @@ From PRD §10.5. These read as AI-generated:
 - Fade-and-slide-up on every card; hover-lift on every tile. Motion is §5 only.
 
 ---
+
+## 7a. Accessibility and performance — enforced, not aspirational
+
+Three properties are checked automatically, because each fails silently and none is
+visible in a screenshot:
+
+- **Contrast** — `a11y/contrast.test.ts` parses the tokens straight out of `globals.css`
+  and asserts every shipping pairing against AA, in both themes, compositing
+  translucent tints onto their real backdrop first.
+- **Reduced motion** — `a11y/motion.test.ts` asserts every component rendering
+  `<motion.*>` also calls `useReducedMotion()`, and that the CSS neutraliser exists. The
+  failure mode is a *new* component that forgets, which testing the existing ones never
+  catches.
+- **Compositor-only animation** — the same file rejects animating `width`, `height`,
+  `top`, `left`, `margin` or `padding`, and rejects inline easings or springs that
+  bypass `lib/motion`.
+
+Measured on the component gallery: **CLS 0**, no layout-shift events, 39 interactive
+elements all labelled, heading order with no skipped levels, no unlabelled SVG.
 
 ## 8. Quality floor — non-negotiable
 

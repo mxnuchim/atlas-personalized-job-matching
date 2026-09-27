@@ -33,9 +33,7 @@ export function AppNav({ className }: { className?: string }) {
             className={cn(
               "relative rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
               "focus-visible:ring-ring/50 outline-none focus-visible:ring-3",
-              active
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground",
+              active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
             {active && (

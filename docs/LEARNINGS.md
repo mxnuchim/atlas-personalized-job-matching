@@ -578,3 +578,45 @@ the test is what keeps the YAML honest.
 **Rule.** When a value must be duplicated across a boundary a build can't cross (code ↔ CI
 config, code ↔ infra), don't hand-sync it — commit one as source and add a test that reads
 the other file and fails on drift.
+
+---
+
+## 2026-09-27 01:57 — A fill colour is not an ink colour
+
+**Problem.** Six WCAG AA contrast failures, every one a colour doing the wrong job. The
+accent indigo reads perfectly as a button background with white on it, and measures
+3.01:1 as link text on the dark card. The tier green looks fine on its own 12% tint and
+measures 2.96:1.
+
+**Root cause.** One token per concept felt like good design-system hygiene. But "the
+brand green" is two requirements: a *fill* judged at 3:1 as a graphic, and *ink* judged
+at 4.5:1 as text. A single value cannot satisfy both unless it is tuned for the harder
+one, which makes the fill muddy.
+
+**Fix.** Two tokens per accent — vivid for fills, arcs, tints and rings; `-ink` for
+text. Values solved numerically against every surface the colour can land on, with
+headroom, rather than nudged by eye.
+
+**Rule.** Whenever a colour is used both as a background and as text, it needs two
+values. And the giveaway that it is wrong is that it *looks* fine — 2.6:1 is perfectly
+readable to someone with unimpaired vision in good light, which is exactly why it has
+to be measured.
+
+---
+
+## 2026-09-27 01:57 — Programmatic focus does not prove a focus ring exists
+
+**Problem.** A sweep that called `el.focus()` and read `getComputedStyle` reported
+seven controls with no focus indicator. All of them had one.
+
+**Root cause.** `:focus-visible` is a heuristic about *how* focus arrived. A scripted
+`.focus()` frequently does not match it, so the computed style is the unfocused one —
+the ring utilities resolve to a transparent box-shadow and the check concludes there is
+no ring.
+
+**Fix.** Drive real `Tab` keypresses and confirm visually. The screenshot settled in
+seconds what computed-style archaeology had muddied for several minutes.
+
+**Rule.** Test focus the way a keyboard user produces it. And when a DOM measurement
+disagrees with what a screenshot would show, take the screenshot — for anything visual,
+the render is the ground truth and the measurement is the proxy.

@@ -756,3 +756,55 @@ after `e`; that was an artifact of synthetic dispatch, not a defect. Real keystr
 focus it correctly.
 
 **Files.** `src/components/{fit-gauge,review-queue}.tsx`, `docs/INTERFACE.md`
+
+---
+
+## 2026-09-27 01:57 — M6 phase 4: accessibility and performance sweep
+
+**Context.** The §10.7 quality floor: WCAG AA contrast, visible keyboard focus, reduced
+motion respected, no layout shift. Checking these once by eye is worth little — each
+fails silently and none of them shows up in a screenshot — so the sweep produced
+standing guards rather than a report.
+
+**Contrast — six real AA failures, all the same root cause.** A colour tuned as a
+*fill* was being used as *ink*:
+
+| Pairing | Was | Needs |
+|---|---|---|
+| dark `--primary` as link text on card | 3.01:1 | 4.5:1 |
+| dark `--primary` as link text on paper | 3.29:1 | 4.5:1 |
+| light `--tier-possible` gauge numeral | 2.94:1 | 3:1 |
+| light strong chip label on its own tint | 2.96:1 | 4.5:1 |
+| light possible chip label on its own tint | 2.62:1 | 4.5:1 |
+| light stretch chip label on its own tint | 4.16:1 | 4.5:1 |
+
+Fixed by separating the two jobs: `--primary-ink` and `--tier-*-ink` carry text,
+the vivid tokens keep drawing arcs, tints and rings. Values were solved numerically —
+hue preserved, lightness walked until every surface the colour can land on clears the
+threshold with headroom — not picked by eye. `--tier-possible` itself was darkened to
+`#b77d27` so the gauge numeral clears large-text AA. On dark, the greens and ambers
+already passed; only the grey needed lifting.
+
+**Standing guards added.** `a11y/contrast.test.ts` parses the tokens out of
+`globals.css` and asserts 52 pairings across both themes, compositing translucent
+tints onto their real backdrop first. `a11y/motion.test.ts` asserts every component
+rendering `<motion.*>` also calls `useReducedMotion()`, that the CSS neutraliser
+exists, that no animation touches a layout-triggering property, and that no inline
+easing or spring bypasses `lib/motion`. Both were verified by planting violations —
+the motion guards caught all three classes at once.
+
+**Measured clean.** CLS **0** with zero layout-shift events. 39 interactive elements,
+all labelled. Heading order with no skipped levels. No unlabelled SVG or image.
+
+**Two findings that were mine, not the code's.** Programmatic `.focus()` does not
+reliably match `:focus-visible`, so a computed-style sweep reported missing focus
+rings on controls that have them — confirmed visible by screenshot under real Tab
+navigation. And the nav buttons it flagged were the gallery's mock markup, not the real
+`AppNav`, which carries `focus-visible:ring-3`.
+
+**Result.** 206 tests green; lint, typecheck and build clean.
+
+**Files.** `src/lib/a11y/{contrast.ts,contrast.test.ts,motion.test.ts}`,
+`src/app/globals.css`, `src/components/{tier-chip,fit-gauge}.tsx`,
+`src/app/(app)/today/page.tsx`, `src/components/{review-queue,match-drawer,ui/button}.tsx`,
+`docs/INTERFACE.md`

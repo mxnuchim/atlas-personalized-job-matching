@@ -40,6 +40,12 @@
   --color-tier-possible: var(--tier-possible);
   --color-tier-stretch: var(--tier-stretch);
 
+  /* Ink variants — the same hues tuned for TEXT. See the note in :root. */
+  --color-primary-ink: var(--primary-ink);
+  --color-tier-strong-ink: var(--tier-strong-ink);
+  --color-tier-possible-ink: var(--tier-possible-ink);
+  --color-tier-stretch-ink: var(--tier-stretch-ink);
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -86,6 +92,13 @@
 
   --primary: #4c5bd4;
   --primary-foreground: #ffffff;
+  /**
+   * Fill and ink are different jobs. A colour vivid enough to carry white text as a
+   * button background is often too light to *be* text on a pale surface — `--primary`
+   * as a link on the dark card measured 3.01:1, well under the 4.5:1 AA needs.
+   * `--primary-ink` is the same hue, re-tuned for text. `contrast.test.ts` enforces it.
+   */
+  --primary-ink: #4c5bd4;
   --secondary: #eef0f3;
   --secondary-foreground: #16181d;
   --muted: #eef0f3;
@@ -100,14 +113,18 @@
   --input: #e3e6eb;
   --ring: #4c5bd4;
 
-  /* Fit tiers (semantic) */
+  /* Fit tiers (semantic). The vivid value draws the gauge arc and tints the chip; the
+     `-ink` value is what any text on top of that tint uses. */
   --tier-strong: #2e9e6b;
-  --tier-possible: #c98a2b;
+  --tier-possible: #b77d27;
   --tier-stretch: #6b7280;
+  --tier-strong-ink: #22734e;
+  --tier-possible-ink: #8a5e1d;
+  --tier-stretch-ink: #606673;
 
   --chart-1: #4c5bd4;
   --chart-2: #2e9e6b;
-  --chart-3: #c98a2b;
+  --chart-3: #b77d27;
   --chart-4: #5a6472;
   --chart-5: #16181d;
 
@@ -132,6 +149,8 @@
 
   --primary: #4c5bd4;
   --primary-foreground: #ffffff;
+  /* Lightened for text: the fill value only reached 3.01:1 on the dark card. */
+  --primary-ink: #7d88e0;
   --secondary: #222634;
   --secondary-foreground: #e7e9ee;
   --muted: #222634;
@@ -149,6 +168,11 @@
   --tier-strong: #35b57b;
   --tier-possible: #e0a64b;
   --tier-stretch: #8a93a6;
+  /* On dark, the vivid greens and ambers already clear AA on their own tint; only
+     the grey needed lifting. Kept as explicit tokens so the two themes stay symmetric. */
+  --tier-strong-ink: #35b57b;
+  --tier-possible-ink: #e0a64b;
+  --tier-stretch-ink: #8b94a7;
 
   --chart-1: #6b78e0;
   --chart-2: #35b57b;

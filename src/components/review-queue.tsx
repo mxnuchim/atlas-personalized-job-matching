@@ -309,7 +309,7 @@ function DraftCard({
               <button
                 type="button"
                 onClick={() => onEditingChange(true)}
-                className="text-primary focus-visible:ring-ring rounded text-xs font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
+                className="text-primary-ink focus-visible:ring-ring rounded text-xs font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
               >
                 Edit
               </button>

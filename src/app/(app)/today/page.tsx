@@ -58,7 +58,7 @@ export default async function TodayPage() {
             <h2 className="font-display text-base font-semibold">Best fits</h2>
             <Link
               href="/matches"
-              className="text-primary focus-visible:ring-ring rounded text-sm hover:underline focus-visible:ring-2 focus-visible:outline-none"
+              className="text-primary-ink focus-visible:ring-ring rounded text-sm hover:underline focus-visible:ring-2 focus-visible:outline-none"
             >
               All {counts.total} matches
             </Link>

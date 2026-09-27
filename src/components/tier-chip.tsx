@@ -8,6 +8,11 @@ import { type FitTier, TIER_LABELS } from "@/lib/scoring";
  *
  * `color-mix` gives the tint and ring from that one token, so a tier can be
  * re-coloured in `globals.css` alone.
+ *
+ * The label uses the `-ink` variant: this is small text sitting on a 12% tint of its
+ * own colour, which needs 4.5:1. The vivid token measured 2.6–3.0:1 there — legible
+ * enough to look fine and not actually accessible. The tint and ring stay vivid; they
+ * are graphics, judged at 3:1.
  */
 export function TierChip({ tier, className }: { tier: FitTier; className?: string }) {
   return (
@@ -17,7 +22,7 @@ export function TierChip({ tier, className }: { tier: FitTier; className?: strin
         className,
       )}
       style={{
-        color: `var(--tier-${tier})`,
+        color: `var(--tier-${tier}-ink)`,
         backgroundColor: `color-mix(in oklab, var(--tier-${tier}) 12%, transparent)`,
         // @ts-expect-error — custom property for the Tailwind ring utility.
         "--tw-ring-color": `color-mix(in oklab, var(--tier-${tier}) 28%, transparent)`,

@@ -146,6 +146,8 @@ export function FitGauge({ value, tier, size = "sm", delay = 0, className }: Fit
           "font-display absolute inset-0 flex items-center justify-center tabular-nums",
           text,
         )}
+        // The vivid token, not `-ink`: this is large display type, which AA judges at
+        // 3:1, and the numeral should match the arc it sits inside.
         style={{ color: `var(--tier-${tier})` }}
       >
         {display}

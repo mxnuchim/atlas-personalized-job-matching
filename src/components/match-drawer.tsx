@@ -189,7 +189,7 @@ function DrawerBody({
           href={match.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-primary focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
+          className="text-primary-ink focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
         >
           Open original
           <ExternalLinkIcon className="size-3.5" />
