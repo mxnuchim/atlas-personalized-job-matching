@@ -35,10 +35,19 @@ const BOUNDARIES: { dir: string; violations: { label: string; pattern: RegExp }[
   },
 ];
 
-/** Secrets belong to whichever layer owns them; env.ts only declares the names. */
+/**
+ * Secrets belong to whichever layer owns them; env.ts only declares the names.
+ *
+ * Scoped to the *LLM provider* keys, which is what the rule was always about: keeping
+ * model vendors swappable behind `lib/llm`. It started as a blanket `_API_KEY` match,
+ * which also forbade credentials no model ever sees — a paid job-board aggregator, for
+ * instance — and would have pushed unrelated vendors into the LLM layer to satisfy a
+ * grep. Isolating Anthropic from OpenAI is the point; isolating a job board from
+ * anything is not.
+ */
 const SECRET_PATTERN = {
-  label: "references a secret",
-  pattern: /[A-Z0-9_]*_API_KEY\b/,
+  label: "references an LLM provider key",
+  pattern: /\b(?:ANTHROPIC|OPENAI|GEMINI|GOOGLE_GENERATIVE_AI|GROQ)_API_KEY\b/,
 };
 const SECRET_DIRS = [join("lib", "llm")];
 

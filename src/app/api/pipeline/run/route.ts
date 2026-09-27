@@ -8,8 +8,16 @@ import { runPipeline } from "@/pipeline/run";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Caps a caller-supplied limit so a stray value cannot start an unbounded run. */
-const MAX_LIMIT = 200;
+/**
+ * Caps a caller-supplied limit so a stray value cannot start an unbounded run.
+ *
+ * Raised from 200 once ingest covered 66 boards: the first multi-source run left
+ * ~4,000 relevant postings unscored, and a ceiling of 200 made draining that backlog
+ * impossible rather than merely slow. Scheduled runs are unaffected — they send no
+ * body and use the stage default of 50, so the cost of the twice-daily run is
+ * unchanged. This ceiling only bounds a backfill someone asked for on purpose.
+ */
+const MAX_LIMIT = 1000;
 
 /**
  * The scheduled pipeline's entry point (PRD §6). Guarded by a bearer token.
@@ -31,11 +39,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { runId, ingest, scoring, drafting, totals } = await runPipeline({
+    const { runId, ingest, scoring, drafting, totals, notified } = await runPipeline({
       scoreLimit,
       draftLimit,
     });
-    return NextResponse.json({ ok: true, runId, ingest, scoring, drafting, totals });
+    // `notified` was returned by runPipeline but dropped here, so a caller could never
+    // tell whether the run notification actually went out.
+    return NextResponse.json({ ok: true, runId, ingest, scoring, drafting, totals, notified });
   } catch (error) {
     // The run row is already closed as `failed` by runPipeline; this is the caller's copy.
     const message = error instanceof Error ? error.message : String(error);

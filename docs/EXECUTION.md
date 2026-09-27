@@ -860,3 +860,57 @@ UI only. The `lib/llm` boundary holds either way.
 is committed at the repo root and not gitignored; worth checking the repo is private.
 
 **Files.** None under `src/`.
+
+---
+
+## 2026-09-27 08:30 — M7: multi-source ingest and the relevance gate
+
+**Context.** Atlas had exactly one source — Vercel's Greenhouse board — so every match
+ever shown came from one company. The ask was breadth: Nigeria, USA, UK, Canada, EU and
+Africa, across sectors, all scored.
+
+**What the shape of the problem turned out to be.** Greenhouse, Lever and Ashby are
+per-company: no search, no geography parameter, so coverage costs one source row per
+employer. LinkedIn, Indeed and Google Jobs have no usable public API at all — checked,
+and recorded in LEARNINGS rather than attempted. That leaves two levers: many ATS
+boards, and the keyless cross-company aggregators.
+
+**Action.**
+
+*Fetchers.* `lever` and `ashby` joined `greenhouse`; the four aggregators (Remotive,
+Arbeitnow, Himalayas, Jobicy) ride the existing `api` kind with a `config.adapter`
+discriminator, so adding a fifth needs no migration. A shared `fetchJson` gives every
+board the same timeout-and-status handling.
+
+*Catalogue.* `src/db/sources.catalogue.ts` — 66 sources, every one verified live before
+being written down. `npm run db:seed:sources` loads it, matching on name so a wrong
+board token is a re-run rather than a migration, and never overwriting `enabled`.
+
+*The relevance gate.* `src/pipeline/relevance.ts`, applied at ingest. 66 boards is
+~11,900 postings and scoring is one LLM call each — sending that to a model would cost
+roughly $17 a run. The gate is pure, tested and derived from the stored profile, so
+changing `target_roles` or `locations` changes the filter with no code edit. Ingest
+reports the split, which is what makes an over-tight filter visible rather than
+silently starving the queue.
+
+**Result — measured, not estimated.** 66 sources, **zero failures**, 84 seconds.
+11,865 seen → 7,733 filtered → **4,093 stored**, a 35% keep rate. Re-running inserted 0
+of 4,132, so idempotency survives the new code path. Stored spread: US 1,790,
+EU/mixed 1,703, UK 336, Canada 329, Africa 20, of which Nigeria 9 — all Moniepoint, all
+genuine (SRE, Mobile Architect, five Heads of Engineering).
+
+Two fixes carried along: the pipeline route's `MAX_LIMIT` rose from 200 to 1,000,
+because a 4,000-job backlog could not be drained 200 at a time (scheduled runs still use
+the stage default of 50, so their cost is unchanged); and the route now returns
+`notified`, which `runPipeline` had always produced and the handler dropped.
+
+Per the user's call, the boundary test's secret rule narrowed from any `_API_KEY` to the
+four LLM provider keys — the rule was always about keeping model vendors swappable, and
+a job-board credential is not that. Verified by planting both cases.
+
+**Result.** 243 tests green (was 222); lint, typecheck and build clean.
+
+**Files.** `src/pipeline/relevance.ts` + test, `src/pipeline/sources/{http,lever,ashby,aggregators}.ts`
++ tests, `src/pipeline/sources/index.ts`, `src/pipeline/ingest.ts`,
+`src/db/{sources.catalogue,seed-sources}.ts`, `src/app/api/pipeline/run/route.ts`,
+`src/lib/llm/boundary.test.ts`, `package.json`

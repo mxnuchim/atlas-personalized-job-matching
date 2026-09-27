@@ -226,8 +226,40 @@ These are not style preferences — they decide where code goes.
 - **Never read config at module scope in a page.** It freezes at build. Build it inside
   the component (see `settings/page.tsx`).
 - **The LLM boundary.** No component, page, action or pipeline module may import `ai`,
-  an `@ai-sdk/*` package, or reference an API key. Everything goes through `@/lib/llm`.
-  Enforced by `no-restricted-imports` and `src/lib/llm/boundary.test.ts`.
+  an `@ai-sdk/*` package, or reference an **LLM provider** key (`ANTHROPIC_`, `OPENAI_`,
+  `GEMINI_`, `GOOGLE_GENERATIVE_AI_`, `GROQ_API_KEY`). Everything goes through
+  `@/lib/llm`. Enforced by `no-restricted-imports` and `src/lib/llm/boundary.test.ts`.
+  The rule is about keeping **model vendors** swappable; it deliberately does not cover
+  credentials no model ever sees, such as a paid job-board aggregator's key, which
+  belongs to whichever layer uses it.
+
+---
+
+## 9a. Where jobs come from
+
+Breadth is a data problem, not a UI one, but it decides what every screen can show.
+
+- **Two kinds of source, and the difference matters.** `greenhouse` / `lever` / `ashby`
+  are **per-company** ATS boards: no search, no geography parameter, so each employer
+  costs one `sources` row. `api` is the **cross-company** aggregators (Remotive,
+  Arbeitnow, Himalayas, Jobicy), discriminated by `config.adapter` rather than by new
+  `source_kind` enum values — so the fifth aggregator needs no migration.
+- **The catalogue is verified, not guessed.** `src/db/sources.catalogue.ts` holds 66
+  sources, each confirmed live before being written down. Load it with
+  `npm run db:seed:sources`; it matches on name, so correcting a board token is a
+  re-run. It never overwrites `enabled` — turning a noisy board off is the user's call.
+- **The relevance gate runs at ingest, before anything is stored.**
+  `src/pipeline/relevance.ts` is pure, tested, and derived from the stored profile, so
+  changing `target_roles` or `locations` retunes it with no code edit. It exists because
+  66 boards is ~11,900 postings and scoring is one LLM call each. It is deliberately
+  biased toward keeping: an unknown or unrecognised location is kept, because the model
+  judges `location_fit` properly and a filter should not pre-empt it.
+- **Ingest reports the split** (`seen` / `filtered` / `inserted` / `duplicates`). Surface
+  it anywhere ingest is shown: a filter that is quietly too tight looks exactly like a
+  quiet week, and the counts are the only thing that tells them apart.
+- **There is still no sources screen.** Adding or disabling a board means editing the
+  catalogue and re-seeding. For a tool whose output quality is bounded by its inputs,
+  this is the most valuable screen not yet built.
 
 ---
 

@@ -45,6 +45,8 @@ npm run db:up
 npm run db:generate     # writes drizzle/0000_*.sql (first time)
 npm run db:migrate      # applies migrations → 10 tables
 npm run db:seed         # creates the single user from .env.local
+npm run db:seed:profile # loads your positioning, strengths and evidence
+npm run db:seed:sources # loads the 66-source catalogue (safe to re-run)
 
 # 5. Run the app
 npm run dev             # http://localhost:3000
@@ -67,6 +69,8 @@ Health check: `curl localhost:3000/api/health` → `{ "ok": true }`.
 | `npm run db:migrate` | Apply migrations |
 | `npm run db:studio` | Drizzle Studio |
 | `npm run db:seed` | Seed the single user |
+| `npm run db:seed:profile` | Seed the profile, strengths and evidence |
+| `npm run db:seed:sources` | Seed the verified job-source catalogue |
 
 ## Project layout
 

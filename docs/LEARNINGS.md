@@ -655,3 +655,66 @@ premise before complying: `state.sh` keeps its evidence in `$TMPDIR/atlas-docs-h
 and the regex can be replayed against a sample command in one line. Three of this
 hook's four bugs were pattern-matching mistakes, which is the argument for testing the
 *matcher* against real payloads rather than only testing that the script runs.
+
+---
+
+## 2026-09-27 08:30 — Tokenising a job title's vocabulary destroys its meaning
+
+**Problem.** The relevance gate derived title keywords from `profile.target_roles` by
+splitting each role into words. It then kept "Treasury Ops Specialist — Jumia (Full
+Time)", "Salesforce Business Systems Administrator" and "Control Systems Technician".
+
+**Root cause.** "Full-Stack Engineer" contributed the token `full`, which matches every
+posting whose title ends in "(Full Time)". "AI-Systems Engineer" contributed `systems`,
+which matches any administrator of any system. A multi-word role name is a phrase whose
+meaning does not survive being cut into words.
+
+**Fix.** Add the whole normalised role as one phrase, and let a curated engineering
+vocabulary do the general matching. Also dropped bare `platform` and `infrastructure`
+from that vocabulary for the same reason — they admitted "Designer, Web Presence &
+Platform" while catching nothing "engineer" did not already catch.
+
+**Rule.** Expand a phrase into tokens only if every token is meaningful alone. Test a
+filter by reading what it *keeps*, not by counting what it drops: the drop count looked
+healthy at every stage, and only the kept sample showed the gate was broken.
+
+---
+
+## 2026-09-27 08:30 — A 200 response is not a successful one
+
+**Problem.** Six Lever boards appeared to exist with exactly 2 postings each. All six
+were fictional — the board tokens were guesses.
+
+**Root cause.** Lever answers an unknown board with **HTTP 200** and a body of
+`{"ok":false,"error":"Document not found"}`. The probe counted object keys and reported
+2. Greenhouse and Ashby 404 properly, so the identical check was sound for them and
+quietly wrong for Lever.
+
+**Fix.** `fetchLever` rejects a non-array payload with the upstream's own error text, so
+a bad token reads as one clear line instead of a wall of Zod array errors. The identical
+count repeated across unrelated companies was the tell — real boards do not agree.
+
+**Rule.** Check the shape of a success, not just its status code. When a probe returns
+suspiciously uniform results across unrelated inputs, the probe is measuring itself.
+
+---
+
+## 2026-09-27 08:30 — LinkedIn, Indeed and Google Jobs are closed, and the open door is a trap
+
+**Problem.** The obvious way to get breadth is the three places everyone searches.
+
+**Root cause.** None offers a usable public jobs API: Google for Jobs is a search
+feature with no query endpoint (Cloud Talent Solution is for employers to search their
+*own* listings), Indeed closed its Job Search API to new users, and LinkedIn's jobs
+access is partner-only. The trap is that LinkedIn's logged-out `jobs-guest` endpoint
+answers a plain curl with 200 — so it looks available.
+
+**Fix.** Not built. It is named in LinkedIn's User Agreement as prohibited automated
+collection, enforcement attaches to the account, and it is undocumented and unversioned.
+For a tool whose purpose is helping its owner get hired, risking their LinkedIn account
+is a bad trade at any yield. Breadth came from 62 public ATS boards and 4 documented
+keyless aggregators instead.
+
+**Rule.** "It returns 200" answers whether you *can*, which is the less important
+question. Weigh the blast radius against the person the tool serves, not against the
+tool.
