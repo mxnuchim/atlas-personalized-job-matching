@@ -848,3 +848,56 @@ them.
 as any other. When a signal has several causes and you cannot tell which, say the
 signal and list the causes — a confident wrong explanation costs more than an honest
 ambiguous one.
+
+---
+
+## 2026-09-27 16:16 — Reasoning tokens are billed as output, and I estimated from the visible answer
+
+**Problem.** I quoted a backfill at ~$2.78 for 2,150 jobs. The first batch of 200 cost
+$0.945 — $0.0047 a job against the $0.00125 I had promised. The real figure is ~$10, a
+4x miss on a number the user had explicitly approved.
+
+**Root cause.** I estimated output at ~400 tokens by eyeballing the size of the JSON
+assessment. Measured: **3,602 in, 2,115 out**. `gpt-5-mini` is a reasoning model and
+its thinking is billed as output at $2/Mtok against $0.25 for input — so ~90% of the
+cost was reasoning I could not see. Worse, `client.ts` already documents exactly this
+("reasoning models spend output tokens on reasoning *before* emitting the object"), and
+`DEFAULT_MAX_OUTPUT_TOKENS` was raised to 8192 back in M2 *because* reasoning was
+truncating the JSON. The evidence was in the file I was estimating for.
+
+**Fix.** Stopped the run at $0.95 rather than spend 4x an approved figure. Added
+`reasoningEffort` to `lib/llm`, mapping to OpenAI's levels and Google's thinking budget
+inside the vendor boundary.
+
+**Rule.** For a reasoning model, cost is driven by tokens you never see, so estimate
+from a measured call, not from the size of the answer. And when a cost figure you gave
+turns out wrong, stop the spend before investigating — the investigation is cheap and
+the meter is not.
+
+---
+
+## 2026-09-27 16:16 — A cheaper setting that changes the answers is not cheaper
+
+**Problem.** `reasoningEffort` halves cost. The obvious move is to turn it down.
+
+**Root cause.** It does not just cost less — it scores differently, and
+systematically. Same six jobs, same prompt:
+
+| effort | out | $/job | scores |
+|---|---|---|---|
+| medium | 2109 | $0.00512 | 76, 78, 80, 78, **50**, 74 |
+| low | 1257 | $0.00342 | 72, 78, 85, 78, **40**, 80 |
+| minimal | 759 | $0.00242 | 72, 84, 88, 78, **32**, 86 |
+
+Less thinking makes the model **more extreme**: good matches rise (74→86, 80→88) and
+the weak one falls (50→32). Variance widens and the distribution shifts up. Tier
+boundaries were calibrated against medium-effort scores, so turning effort down
+silently redefines what "strong" means — and with `strong` already at 21% of scored
+matches, inflating it further is the wrong direction.
+
+**Fix.** Kept the default. The lever is *how many* jobs to score, not how cheaply to
+score each one.
+
+**Rule.** Benchmark a cost optimisation on its output, not just its price. If the
+cheaper setting produces different answers, you have not found a saving — you have
+found a second, undocumented configuration of the product.

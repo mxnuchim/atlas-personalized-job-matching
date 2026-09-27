@@ -67,6 +67,15 @@ export type GenerateStructuredOptions<T> = {
   /** Per-attempt wall clock. Defaults to `LLM_REQUEST_TIMEOUT_MS`. */
   timeoutMs?: number;
   signal?: AbortSignal;
+  /**
+   * How much a reasoning model may think before answering.
+   *
+   * This is the single biggest lever on cost for gpt-5* and gemini-3*: reasoning is
+   * billed as *output*, and output is 8x input on gpt-5-mini. Measured on real
+   * scoring calls: ~3.6k input against ~2.1k output, so roughly 90% of the bill was
+   * thinking. Left unset, the provider's default applies.
+   */
+  reasoningEffort?: "minimal" | "low" | "medium" | "high";
   /** Injected in tests to drive a mock model. Never set in application code. */
   languageModel?: LanguageModel;
 };
@@ -96,6 +105,7 @@ export async function generateStructured<T>(
         maxRetries: 0,
         // Fresh per attempt: a timeout bounds one call, not the retry budget.
         abortSignal: withTimeout(opts.signal, timeoutMs),
+        ...reasoningOptions(opts.reasoningEffort),
       }),
     { maxRetries, modelId, signal: opts.signal },
   );
@@ -114,6 +124,26 @@ export async function generateStructured<T>(
 function withTimeout(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
   const timeout = AbortSignal.timeout(timeoutMs);
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
+/**
+ * Translate a reasoning budget into each provider's own dialect. OpenAI takes an
+ * effort level; Google takes a thinking-token budget, where 0 disables it. Anthropic
+ * and Groq ignore what they do not recognise, and an unset effort sends nothing at
+ * all — so this is safe to pass unconditionally.
+ *
+ * Provider-specific translation belongs here and nowhere else (PRD §12).
+ */
+export function reasoningOptions(effort: GenerateStructuredOptions<unknown>["reasoningEffort"]) {
+  if (!effort) return {};
+
+  const googleBudget = { minimal: 0, low: 1024, medium: 4096, high: 16_384 }[effort];
+  return {
+    providerOptions: {
+      openai: { reasoningEffort: effort },
+      google: { thinkingConfig: { thinkingBudget: googleBudget } },
+    },
+  };
 }
 
 /**
