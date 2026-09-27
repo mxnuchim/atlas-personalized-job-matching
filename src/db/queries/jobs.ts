@@ -1,4 +1,4 @@
-import { and, desc, gte, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { jobs, type Job } from "@/db/schema";
@@ -52,7 +52,11 @@ export async function listJobs(
   return db
     .select()
     .from(jobs)
-    .where(cutoff ? and(isNotNull(jobs.postedAt), gte(jobs.postedAt, cutoff)) : undefined)
+    .where(
+      cutoff
+        ? and(isNull(jobs.closedAt), isNotNull(jobs.postedAt), gte(jobs.postedAt, cutoff))
+        : isNull(jobs.closedAt),
+    )
     .orderBy(desc(jobs.postedAt), desc(jobs.firstSeenAt))
     .limit(limit);
 }
@@ -79,7 +83,8 @@ export async function countJobsByFreshness(): Promise<Record<FreshnessKey, numbe
       "30d": bounded(24 * 30),
       all: sql<number>`count(*)::int`,
     })
-    .from(jobs);
+    .from(jobs)
+    .where(isNull(jobs.closedAt));
 
   return {
     "24h": row?.["24h"] ?? 0,
@@ -88,4 +93,45 @@ export async function countJobsByFreshness(): Promise<Record<FreshnessKey, numbe
     "30d": row?.["30d"] ?? 0,
     all: row?.all ?? 0,
   };
+}
+
+/**
+ * Every external id this source has on file, split by whether it is still open.
+ * Closure detection needs both: the open ones to test for absence, the closed ones so
+ * a posting that reappears can be revived (see `pipeline/closure.ts`).
+ */
+export async function getSourceExternalIds(
+  sourceId: string,
+): Promise<{ open: string[]; closed: string[] }> {
+  const rows = await db
+    .select({ externalId: jobs.externalId, closedAt: jobs.closedAt })
+    .from(jobs)
+    .where(eq(jobs.sourceId, sourceId));
+
+  return {
+    open: rows.filter((r) => r.closedAt === null).map((r) => r.externalId),
+    closed: rows.filter((r) => r.closedAt !== null).map((r) => r.externalId),
+  };
+}
+
+/** Mark postings closed. Never deletes — `matches` and `drafts` cascade off this row. */
+export async function markJobsClosed(sourceId: string, externalIds: string[]): Promise<number> {
+  if (externalIds.length === 0) return 0;
+  const rows = await db
+    .update(jobs)
+    .set({ closedAt: new Date() })
+    .where(and(eq(jobs.sourceId, sourceId), inArray(jobs.externalId, externalIds)))
+    .returning({ id: jobs.id });
+  return rows.length;
+}
+
+/** Revive postings that came back. A board dropping an entry for one run is not a close. */
+export async function reopenJobs(sourceId: string, externalIds: string[]): Promise<number> {
+  if (externalIds.length === 0) return 0;
+  const rows = await db
+    .update(jobs)
+    .set({ closedAt: null })
+    .where(and(eq(jobs.sourceId, sourceId), inArray(jobs.externalId, externalIds)))
+    .returning({ id: jobs.id });
+  return rows.length;
 }

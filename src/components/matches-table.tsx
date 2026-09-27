@@ -300,8 +300,12 @@ export function MatchesTable({
                     {match.location ?? (match.remote ? "Remote" : "—")}
                   </td>
                   <td className="text-muted-foreground hidden py-2.5 pr-5 text-xs tabular-nums sm:table-cell">
-                    {match.postedAgeLabel ?? "—"}
-                    {match.evergreen && (
+                    {match.closed ? (
+                      <span className="text-destructive">Closed</span>
+                    ) : (
+                      (match.postedAgeLabel ?? "—")
+                    )}
+                    {!match.closed && match.evergreen && (
                       <span className="ml-1 opacity-60" title="Open for over six months">
                         ·
                       </span>

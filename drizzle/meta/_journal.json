@@ -43,6 +43,13 @@
       "when": 1790336226291,
       "tag": "0005_adorable_randall",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790498490035,
+      "tag": "0006_early_kid_colt",
+      "breakpoints": true
     }
   ]
 }

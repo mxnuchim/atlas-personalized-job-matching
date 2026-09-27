@@ -49,6 +49,14 @@ const envSchema = z.object({
   LOGIN_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
 
   /**
+   * Postings older than this never enter the corpus. A board returns every open
+   * requisition, so without a limit a first run ingests years of backlog. 30 days
+   * covers the normal life of an open role; widening it is one line and one re-run,
+   * since the boards still list what they still have.
+   */
+  MAX_POSTING_AGE_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+
+  /**
    * Where the "N new matches" run notification goes (PRD §8 step 7). Any endpoint that
    * takes a POST: Slack, Discord, ntfy, or your own. Unset = no notification.
    */

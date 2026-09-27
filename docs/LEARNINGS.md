@@ -765,3 +765,43 @@ now have tests, written *after* the render showed what to write.
 **Rule.** Render it against real data before calling it done. A unit test proves the
 cases you thought of; the first screen of real output shows you the ones you did not.
 For anything with a filter or a count, that pass is not optional.
+
+---
+
+## 2026-09-27 10:10 — `| head -N` silently truncates the thing you are verifying
+
+**Problem.** An ingest verification run appeared to complete and was read as evidence.
+It had not completed — the process was cut off partway and the "results" were a
+fragment of a log.
+
+**Root cause.** The command ended `... | grep -E '...' | head -20`. Once `head` has its
+twenty lines it exits, the pipe closes, and the producer dies on SIGPIPE. The wrapper
+still reported exit code 0. Worse, one alternative in the grep pattern was two spaces,
+which matched pino's indented log fields — so the twenty lines were consumed by routine
+logging before the summary was ever printed.
+
+**Fix.** Write the summary to a file and read the file. For anything whose completion
+is the point, never put `head` in the pipeline.
+
+**Rule.** `head` is a truncation, not a preview — it can end the process upstream of it.
+If a command's *completion* is the evidence, do not pipe it through anything that can
+exit early, and make the completion marker explicit so a partial run is distinguishable
+from a finished one.
+
+---
+
+## 2026-09-27 10:10 — The test suite fails on Node 16, and the shell's default moved
+
+**Problem.** `vitest` died at startup with `crypto$2.getRandomValues is not a function`,
+having passed minutes earlier in the same working tree.
+
+**Root cause.** A new shell resolved `node` to v16.20.2 via nvm instead of v21. Global
+`crypto.getRandomValues` arrived in Node 19, and Vite's config resolution calls it.
+Nothing about the project changed.
+
+**Fix.** `export PATH="$HOME/.nvm/versions/node/v22.15.0/bin:$PATH"`. CI already pins
+Node 22 (`.github/workflows/ci.yml`), so this was local only.
+
+**Rule.** When a green suite fails on no change, check the interpreter before the code.
+And if a toolchain error names a builtin that should always exist, it is a runtime
+version problem, not a bug.

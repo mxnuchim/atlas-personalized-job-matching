@@ -1,11 +1,15 @@
 import "server-only";
 
 import { db } from "@/db";
+import { getSourceExternalIds, markJobsClosed, reopenJobs } from "@/db/queries/jobs";
 import { getCurrentProfile } from "@/db/queries/profile";
 import { getEnabledSources } from "@/db/queries/sources";
 import { jobs, type NewJob, type Source } from "@/db/schema";
+import { isStale } from "@/lib/age";
+import { env } from "@/lib/env";
 import { log } from "@/lib/logger";
 
+import { decideClosure } from "./closure";
 import { collapseRoles } from "./dedupe";
 import { buildCriteria, isRelevant, type RelevanceCriteria } from "./relevance";
 import { getFetcher } from "./sources";
@@ -14,7 +18,8 @@ import { getFetcher } from "./sources";
  * Per-source outcome. `duplicates` are postings already stored (the dedupe win);
  * `filtered` are postings the relevance gate rejected before they were ever stored;
  * `collapsed` are extra listings of a role already counted — one job advertised in
- * many cities.
+ * many cities; `expired` were older than the posting-age limit; `closed` and
+ * `reopened` are stored rows this run marked gone or revived.
  */
 export type IngestResult = {
   source: string;
@@ -23,6 +28,9 @@ export type IngestResult = {
   duplicates: number;
   filtered: number;
   collapsed: number;
+  expired: number;
+  closed: number;
+  reopened: number;
   error?: string;
 };
 
@@ -32,6 +40,9 @@ export type IngestSummary = {
   duplicates: number;
   filtered: number;
   collapsed: number;
+  expired: number;
+  closed: number;
+  reopened: number;
   results: IngestResult[];
 };
 
@@ -53,6 +64,9 @@ export async function ingestSource(
     duplicates: 0,
     filtered: 0,
     collapsed: 0,
+    expired: 0,
+    closed: 0,
+    reopened: 0,
   };
 
   const fetcher = getFetcher(source.kind);
@@ -69,16 +83,32 @@ export async function ingestSource(
     return { ...empty, error: message };
   }
 
+  // Closure detection diffs against the *raw* fetch — every id the board returned,
+  // before the age limit and the relevance gate. Diffing the filtered set would read
+  // "aged past the window" or "not an engineering title" as "this role is gone".
+  const { closed, reopened } = await applyClosure(
+    source,
+    normalized.map((job) => job.externalId),
+  );
+
+  // Postings older than the limit never enter. A board lists every open requisition,
+  // so without this a first run ingests years of backlog — and re-ingests it on every
+  // run, because deleting a row does not stop the board still listing it.
+  // `isStale` owns the one definition of "too old", and it keeps an undated posting:
+  // unknown age is not evidence of staleness, and Ashby and Lever omit the field
+  // routinely.
+  const now = new Date();
+  const fresh = normalized.filter((job) => !isStale(job.postedAt, env.MAX_POSTING_AGE_DAYS, now));
+  const expired = normalized.length - fresh.length;
+
   // The relevance gate (see `./relevance`) runs before anything is stored. Dozens of
   // boards is thousands of postings, and scoring is one LLM call each — filtering here
   // keeps the corpus, the queue and the bill proportionate to what is actually worth
   // reading. A run with no profile yet filters nothing rather than dropping everything.
   const relevant = criteria
-    ? normalized.filter(
-        (job) => isRelevant({ title: job.title, location: job.location }, criteria).keep,
-      )
-    : normalized;
-  const filtered = normalized.length - relevant.length;
+    ? fresh.filter((job) => isRelevant({ title: job.title, location: job.location }, criteria).keep)
+    : fresh;
+  const filtered = fresh.length - relevant.length;
 
   // One role advertised in many cities is many postings with many ids. Collapse them
   // after the gate, so each variant is judged on its own location first (see
@@ -95,7 +125,7 @@ export async function ingestSource(
   const rows = [...deduped.values()];
 
   if (rows.length === 0) {
-    return { ...empty, seen: normalized.length, filtered, collapsed };
+    return { ...empty, seen: normalized.length, filtered, collapsed, expired, closed, reopened };
   }
 
   const insertedRows = await db
@@ -111,6 +141,9 @@ export async function ingestSource(
     duplicates: rows.length - insertedRows.length,
     filtered,
     collapsed,
+    expired,
+    closed,
+    reopened,
   };
   logger.info(result, "source ingested");
   return result;
@@ -143,8 +176,58 @@ export async function runIngest(): Promise<IngestSummary> {
     duplicates: results.reduce((total, result) => total + result.duplicates, 0),
     filtered: results.reduce((total, result) => total + result.filtered, 0),
     collapsed: results.reduce((total, result) => total + result.collapsed, 0),
+    expired: results.reduce((total, result) => total + result.expired, 0),
+    closed: results.reduce((total, result) => total + result.closed, 0),
+    reopened: results.reduce((total, result) => total + result.reopened, 0),
     results,
   };
   logger.info({ sources: sources.length, ...summary, results: undefined }, "ingest complete");
   return summary;
+}
+
+/**
+ * Mark postings that have come off this board, and revive any that came back.
+ *
+ * Never throws: closure is bookkeeping, and losing it must not cost a run its
+ * ingest. `decideClosure` holds the judgement — including the refusals that keep a
+ * truncated response from mass-closing live roles.
+ */
+async function applyClosure(
+  source: Source,
+  seen: string[],
+): Promise<{ closed: number; reopened: number }> {
+  const logger = log("ingest");
+  try {
+    const stored = await getSourceExternalIds(source.id);
+    const decision = decideClosure({
+      kind: source.kind,
+      fetchFailed: false,
+      seen,
+      storedOpen: stored.open,
+      storedClosed: stored.closed,
+    });
+
+    if (!decision.act) {
+      // Only worth saying when there was something it could have acted on.
+      if (stored.open.length > 0 && source.kind !== "api") {
+        logger.info({ source: source.name, reason: decision.reason }, "closure skipped");
+      }
+      return { closed: 0, reopened: 0 };
+    }
+
+    const [closed, reopened] = await Promise.all([
+      markJobsClosed(source.id, decision.closed),
+      reopenJobs(source.id, decision.reopened),
+    ]);
+    if (closed || reopened) {
+      logger.info({ source: source.name, closed, reopened }, "closure applied");
+    }
+    return { closed, reopened };
+  } catch (error) {
+    logger.error(
+      { source: source.name, error: error instanceof Error ? error.message : String(error) },
+      "closure failed",
+    );
+    return { closed: 0, reopened: 0 };
+  }
 }

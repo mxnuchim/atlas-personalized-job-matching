@@ -968,3 +968,85 @@ irrelevant ones (51 more were protected by an existing match and left alone).
 `src/lib/{age.ts,age.test.ts}`, `src/db/queries/{jobs.ts,matches.ts}`,
 `src/app/(app)/jobs/page.tsx`, `src/components/{matches-table,match-drawer}.tsx`,
 `src/app/preview/gallery.tsx`
+
+---
+
+## 2026-09-27 10:05 — Closure detection, and moving the age limit to ingest
+
+**Context.** The ask was: detect closures, delete everything older than 7 days, then
+score what remains — with problems surfaced first. Four problems, two of which would
+have broken it.
+
+**The problems.**
+
+1. *Deleting old rows makes them more likely to be scored.* Those roles are still open
+   on their boards, so the next run re-inserts them with a fresh `first_seen_at` — and
+   `getUnscoredJobs` orders by `first_seen_at DESC`, so months-old requisitions would
+   jump ahead of genuinely new postings. The age limit has to live at **ingest**.
+2. *Closure detection cannot work on the aggregators.* The inference is "stored but
+   absent from this fetch", which needs a complete set. Greenhouse/Lever/Ashby return
+   one; the four aggregators return a capped page of a rolling feed, where absence
+   usually means newer postings pushed it off.
+3. *An ingest age filter makes closure lie.* A role aging past the window vanishes from
+   the filtered set and reads as closed. Closure must diff the **raw** fetch.
+4. *Deleting by age destroys work.* `matches` cascades on job delete and `drafts`
+   cascade off matches.
+
+**Decisions (user).** 30-day ingest window, not 7 — the window only changes the
+one-time backfill (~$2.78 vs ~$1.58), not the ~$0.15/day steady state, so the narrower
+one buys $1.20 once at the cost of never seeing a role past its first week. And closed
+roles are **marked, not deleted**.
+
+**Action.** `src/pipeline/closure.ts` — pure decision logic with four refusals: ATS
+kinds only, never on a failed fetch, never on an empty response, and never more than
+50% of a source at once (a truncated response and a hiring freeze look identical, and
+are told apart by what being wrong costs). Postings that reappear are reopened, so one
+dropped entry cannot kill a live role permanently. Migration `0006` adds `jobs.closed_at`
+plus an index; closed rows are excluded from the Jobs list and the scoring queue but
+kept, surfacing as "No longer listed" in the drawer and "Closed" in the matches table.
+`MAX_POSTING_AGE_DAYS` (default 30) gates ingest, reusing `isStale` so "too old" has one
+definition.
+
+**Result.** Cleanup removed 1,037 rows outside 30 days, none with a match attached,
+leaving 2,226. The verification ingest was still running at time of writing; first
+observed behaviour is 16 inserts and **1 close** across the run so far — the
+conservative direction, which is the one the guards are tuned for. Full-run numbers
+follow in the next entry. 271 tests green; lint, typecheck clean.
+
+**Files.** `src/pipeline/{closure.ts,closure.test.ts,ingest.ts}`,
+`src/db/schema/jobs.ts`, `src/db/queries/{jobs.ts,matches.ts}`, `src/lib/env.ts`,
+`src/components/{matches-table,match-drawer}.tsx`, `src/app/preview/gallery.tsx`,
+`drizzle/0006_early_kid_colt.sql`, `.env.example`
+
+---
+
+## 2026-09-27 10:10 — Closure verification run, and what it actually proved
+
+**Context.** The previous entry closed with the verification ingest still in flight.
+It finished, and the result was more useful than a clean run would have been.
+
+**Result.** `seen=6212 expired=1683 filtered=3213 collapsed=220 inserted=6
+duplicates=1090`, `closed=1 reopened=0`, and — the interesting part — **20 of 66
+sources failed** with `fetch failed`, the run taking 431s instead of the usual 85s.
+
+**What that proved.** Closure detection stayed correct under conditions I did not
+engineer. Twenty sources failed and *none* of them closed anything: a failed fetch
+returns from `ingestSource` before `applyClosure` is ever called, so the protection is
+structural rather than a flag someone has to remember to set. The single close was
+Vercel, a board that genuinely lost a posting. A naive implementation would have marked
+several thousand live roles closed in that run.
+
+Worth noting honestly: because of that early return, `decideClosure`'s `fetchFailed`
+parameter is always `false` on the real call path. It is tested and kept as
+belt-and-braces for any future caller that diffs without going through ingest, but the
+guard doing the work in production is the control flow.
+
+**The failures were transient.** All eight boards re-tested afterwards returned HTTP
+200 — Stripe, Databricks, Anthropic, Cloudflare, Airbnb, Moniepoint, MongoDB, GitLab.
+Local network saturation from repeated full ingests, not the boards refusing us. The
+real lesson is that 20 silent source failures only showed up because the summary counts
+them; a run that loses a third of its coverage otherwise looks like a quiet day.
+
+**Result.** 271 tests green; lint, typecheck and build clean.
+
+**Files.** None beyond the previous entry — this records the verification.

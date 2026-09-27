@@ -1,4 +1,4 @@
-import { and, desc, eq, notExists, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, notExists, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -33,11 +33,15 @@ export async function getUnscoredJobs(profileVersion: number, limit: number): Pr
     .select()
     .from(jobs)
     .where(
-      notExists(
-        db
-          .select({ one: sql`1` })
-          .from(matches)
-          .where(and(eq(matches.jobId, jobs.id), eq(matches.profileVersion, profileVersion))),
+      and(
+        // A closed posting is not worth a scoring call — the role is gone.
+        isNull(jobs.closedAt),
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(matches)
+            .where(and(eq(matches.jobId, jobs.id), eq(matches.profileVersion, profileVersion))),
+        ),
       ),
     )
     .orderBy(desc(jobs.firstSeenAt))
@@ -81,6 +85,12 @@ export type MatchRow = {
   postedAgeLabel: string | null;
   /** Open long enough to be an evergreen requisition rather than a new opening. */
   evergreen: boolean;
+  /**
+   * The posting has come off its board — filled or withdrawn. The match is kept (you
+   * may already have drafted for it) but it must be visibly dead, or you would send
+   * outreach for a role that no longer exists.
+   */
+  closed: boolean;
   /** Plain text, capped. `descriptionTruncated` says whether anything was cut. */
   description: string;
   descriptionTruncated: boolean;
@@ -131,6 +141,7 @@ export async function listMatchRows(limit = 200, profileVersion?: number): Promi
       postedAt: j.postedAt?.toISOString() ?? null,
       postedAgeLabel: relativeAge(j.postedAt, now),
       evergreen: isStale(j.postedAt, 180, now),
+      closed: j.closedAt !== null,
       description: text.slice(0, MAX_DESCRIPTION_CHARS),
       descriptionTruncated: text.length > MAX_DESCRIPTION_CHARS,
     };

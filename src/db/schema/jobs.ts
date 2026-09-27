@@ -32,11 +32,20 @@ export const jobs = pgTable(
     description: text().notNull().default(""),
     postedAt: timestamp({ withTimezone: true }),
     firstSeenAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    /**
+     * When the posting stopped appearing on its board — it was filled or withdrawn.
+     * Marked, never deleted: a role you already scored or drafted for has to stay in
+     * the pipeline flagged closed rather than vanish, and `matches`/`drafts` cascade
+     * off this row. Only set for sources that return a complete set (see
+     * `pipeline/closure.ts`); null means open *or* unknowable.
+     */
+    closedAt: timestamp({ withTimezone: true }),
     raw: jsonb().$type<Record<string, unknown>>(),
   },
   (t) => [
     uniqueIndex("jobs_source_external_uq").on(t.sourceId, t.externalId),
     index("jobs_company_idx").on(t.company),
+    index("jobs_open_idx").on(t.closedAt),
   ],
 );
 

@@ -92,12 +92,20 @@ function DrawerBody({
           </Dialog.Description>
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <TierChip tier={match.tier} />
-            {/* A requisition that has sat open for months is a different prospect from
-                one that opened this week, and the fit score cannot tell you which. */}
-            {match.evergreen && (
-              <span className="text-muted-foreground rounded-md px-2 py-0.5 text-xs ring-1 ring-inset ring-current/25">
-                Long open
+            {/* Closed outranks everything: a role that is gone should not be judged on
+                how long it was open. */}
+            {match.closed ? (
+              <span className="text-destructive rounded-md px-2 py-0.5 text-xs ring-1 ring-current/30 ring-inset">
+                No longer listed
               </span>
+            ) : (
+              /* A requisition that has sat open for months is a different prospect from
+                 one that opened this week, and the fit score cannot tell you which. */
+              match.evergreen && (
+                <span className="text-muted-foreground rounded-md px-2 py-0.5 text-xs ring-1 ring-current/25 ring-inset">
+                  Long open
+                </span>
+              )
             )}
           </div>
         </div>
