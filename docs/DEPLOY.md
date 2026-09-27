@@ -56,6 +56,16 @@ to edit a JSON file on someone else's laptop to use this.
 Nothing runs migrations automatically. That is deliberate — a migration that runs on
 every deploy is a migration that runs during a rollback.
 
+**Check it landed** before touching anything else:
+
+```bash
+DATABASE_URL="…" npm run db:status
+```
+
+It lists every migration and whether that database has it. This is the first thing to
+run whenever a deployed page fails — React error 441 in production is a *masked* server
+error, so a missing column looks like a mystery rather than a missing column.
+
 ## 3. Vercel
 
 Import the repository. Framework detection handles the build; no overrides needed.
@@ -165,6 +175,11 @@ scored" is not the steady state. Raising `SCORE_LIMIT` to match full inflow cost
 $26/month.
 
 ## Troubleshooting
+
+**A page throws React error 441.** It means "something failed during the server
+render" and nothing more — the real message is stripped in production. Run
+`db:status` first: an unapplied migration is the usual cause, and it presents as one
+page at a time, whichever one happens to touch a column that does not exist yet.
 
 **The email never arrives.** The run row records why: `notifyRun` returns a reason and
 the pipeline logs it. The usual cause is an unverified sending domain, which Resend

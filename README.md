@@ -67,6 +67,7 @@ Health check: `curl localhost:3000/api/health` → `{ "ok": true }`.
 | `npm run db:up` / `db:down` | Local Postgres (Docker) up / down |
 | `npm run db:generate` | Generate a migration from the schema |
 | `npm run db:migrate` | Apply migrations |
+| `npm run db:status` | Which migrations a database has (works against production) |
 | `npm run db:studio` | Drizzle Studio |
 | `npm run db:seed` | Seed the single user |
 | `npm run db:seed:profile` | Seed the profile, strengths and evidence |
