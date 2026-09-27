@@ -1173,3 +1173,27 @@ migrations, deployed commit and local, env contract and env set — build the on
 that compares them and run it before forming a theory. Reasoning from one side of a
 mismatch will always produce a plausible answer, and plausible is exactly what makes it
 expensive.
+
+---
+
+## 2026-09-27 20:50 — Validation that is accurate but unactionable
+
+**Problem.** A scheduled run failed with `DATABASE_URL: expected string, received
+undefined` and a stack trace into `env.ts`. Every word was true, and it pointed at the
+wrong layer: the value was missing from GitHub's settings, not from the code.
+
+**Root cause.** An unset Actions secret expands to an empty string, which the env
+loader strips as blank, so the schema sees it as absent. The message then describes the
+*symptom at the last layer that noticed* rather than the cause at the layer that owns
+it. The note "blank values are treated as unset, so an empty variable is never the
+cause" actively pointed away from the answer.
+
+**Fix.** Check the configuration at the boundary that owns it — a workflow step, before
+checkout, that names the missing secrets and where they go, including the two
+placements that look correct and are not (Environment-scoped secrets, and the
+Dependabot/Codespaces tabs).
+
+**Rule.** An error is only as good as the action it suggests. When a value crosses a
+boundary — CI into a process, dashboard into a runtime — validate it on the far side
+*and* check it on the near side, where you can still say which settings page to open.
+The inner check keeps the program correct; the outer one keeps the person unblocked.

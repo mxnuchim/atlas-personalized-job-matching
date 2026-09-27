@@ -39,6 +39,48 @@ jobs:
     timeout-minutes: 45
 
     steps:
+      # First, before checkout or npm ci. An unset secret arrives as an empty string,
+      # so the app's own validation reports it as "undefined" from inside a stack
+      # trace — technically accurate, and no help at all when the actual problem is a
+      # value missing from a settings page. This says which, and where.
+      - name: Check configuration
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL_TO: ${{ secrets.NOTIFY_EMAIL_TO }}
+          APP_URL: ${{ vars.APP_URL }}
+          NOTIFY_EMAIL_FROM: ${{ vars.NOTIFY_EMAIL_FROM }}
+        run: |
+          missing=""
+          for name in DATABASE_URL AUTH_SECRET OPENAI_API_KEY; do
+            [ -z "$(eval echo \"\$$name\")" ] && missing="$missing $name"
+          done
+
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing"
+            echo ""
+            echo "Set them under Settings → Secrets and variables → Actions → Secrets."
+            echo "Two things that look right and are not:"
+            echo "  • Secrets added to an *Environment* need 'environment:' declared on this job."
+            echo "  • The Dependabot and Codespaces tabs are separate; Actions cannot read those."
+            echo ""
+            echo "AUTH_SECRET is needed even though the pipeline never signs anyone in:"
+            echo "src/lib/env.ts validates the whole schema on import. Use the same value as Vercel."
+            exit 1
+          fi
+
+          # Not fatal — the run still does its work, it just cannot tell you about it.
+          for name in RESEND_API_KEY NOTIFY_EMAIL_TO; do
+            [ -z "$(eval echo \"\$$name\")" ] && echo "::warning::$name is unset — this run will not email you."
+          done
+          for name in APP_URL NOTIFY_EMAIL_FROM; do
+            [ -z "$(eval echo \"\$$name\")" ] && echo "::warning::Repository *variable* $name is unset."
+          done
+
+          echo "Configuration looks complete."
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4

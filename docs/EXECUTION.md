@@ -1663,3 +1663,34 @@ not *this*.
 **Result.** 352 tests green; lint and typecheck clean.
 
 **Files.** `src/db/status.ts`, `package.json`, `README.md`, `docs/DEPLOY.md`
+
+---
+
+## 2026-09-27 20:50 — A preflight for the scheduled run
+
+**Context.** The first real Actions run failed with the app's env validation — forty
+lines of stack trace reporting `DATABASE_URL: expected string, received undefined`.
+The workflow was correct; the repository secrets were simply not set.
+
+**Why the message was useless here.** An unset secret arrives as an empty string, which
+`withoutBlanks` strips, so the schema reports it as *undefined*. Accurate, and no help
+at all: the real problem was a value missing from a settings page, and nothing in the
+output said so or where to put it.
+
+**Action.** A `Check configuration` step, first in the job — before checkout, before
+`npm ci`, so it fails in seconds rather than after a minute of setup. It names exactly
+which secrets are missing, and names the two configurations that look right and are
+not: secrets added to an *Environment* (which needs `environment:` on the job) and the
+Dependabot/Codespaces tabs, which Actions cannot read. Missing optional values warn
+rather than fail — a run with no `RESEND_API_KEY` still does its work, it just cannot
+tell you about it.
+
+**Verified against the real shell.** GitHub runs `run:` blocks under
+`bash -eo pipefail`, where `[ -z "$X" ] && echo …` can abort the script when the test
+is false. I extracted the block verbatim from the committed YAML and ran it under those
+exact flags, both with nothing set and everything set, rather than trusting a paraphrase
+run under a plain shell.
+
+**Result.** Failure now reads as one error line plus where to fix it.
+
+**Files.** `.github/workflows/pipeline.yml`
