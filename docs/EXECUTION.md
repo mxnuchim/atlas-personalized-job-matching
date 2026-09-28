@@ -1780,3 +1780,17 @@ Not interested** (no draft); an email-apply role shows **Apply + Draft email + N
 
 **Files.** `src/db/queries/matches.ts`, `src/components/match-drawer.tsx`,
 `src/pipeline/drafting/draft.ts`, `docs/INTERFACE.md`
+
+---
+
+## 2026-09-28 11:34 — Apply button on the Today cards
+
+**Context.** Apply became the primary drawer action, but a Today card still needed a click
+into the drawer to reach it.
+
+**Action.** Added an **Apply** button to `match-card.tsx` (opens the posting), so you can apply
+straight from the daily queue without the detour.
+
+**Result.** 357 tests green; lint, typecheck and build clean. Verified in `/preview`.
+
+**Files.** `src/components/match-card.tsx`

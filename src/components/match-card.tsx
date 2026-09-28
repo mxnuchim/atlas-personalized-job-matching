@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangleIcon } from "lucide-react";
+import { AlertTriangleIcon, ExternalLinkIcon } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { FitGauge } from "@/components/fit-gauge";
@@ -94,6 +94,19 @@ export function MatchCard({
               ))}
             </ul>
           )}
+
+          {/* Apply is the action — open the posting without a detour through the drawer. */}
+          <div className="mt-4">
+            <a
+              href={match.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-primary text-primary-foreground focus-visible:ring-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:outline-none"
+            >
+              <ExternalLinkIcon className="size-3.5" />
+              Apply
+            </a>
+          </div>
         </div>
       </div>
     </motion.article>
