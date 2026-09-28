@@ -36,7 +36,11 @@ const envSchema = z.object({
 
   // M2 — scoring & drafting. Provider-agnostic: src/lib/llm resolves these and is
   // the only module that reads an API key or knows a provider exists (PRD §12).
-  LLM_PROVIDER: z.enum(["anthropic", "openai", "google", "groq"]).default("openai"),
+  // "gateway" routes language-model calls through the Vercel AI Gateway (billed to the
+  // AI_GATEWAY_API_KEY credit balance) instead of a direct provider key. The default
+  // stays "openai" — direct is cheaper (prompt caching) and has one less hop in the
+  // scheduled run; the gateway is opted into per-process, e.g. for a one-off backfill.
+  LLM_PROVIDER: z.enum(["anthropic", "openai", "google", "groq", "gateway"]).default("openai"),
   MODEL_SCORING: z.string().default("gpt-5-mini"),
   MODEL_DRAFTING: z.string().default("gpt-5-mini"),
   ANTHROPIC_API_KEY: z.string().optional(),

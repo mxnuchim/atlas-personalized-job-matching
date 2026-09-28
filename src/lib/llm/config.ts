@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGateway } from "@ai-sdk/gateway";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -16,7 +17,7 @@ import { LlmConfigError } from "./errors";
  * env; the prompts, schemas, pipeline and UI never move (PRD §12).
  */
 
-export type LlmProvider = "anthropic" | "openai" | "google" | "groq";
+export type LlmProvider = "anthropic" | "openai" | "google" | "groq" | "gateway";
 
 /**
  * The two model slots from the PRD §15-D env contract. These are task *slots*, not
@@ -46,6 +47,7 @@ const API_KEYS: Record<LlmProvider, string | undefined> = {
   openai: env.OPENAI_API_KEY,
   google: env.GEMINI_API_KEY,
   groq: env.GROQ_API_KEY,
+  gateway: env.AI_GATEWAY_API_KEY,
 };
 
 const ENV_VAR_NAMES: Record<LlmProvider, string> = {
@@ -53,6 +55,7 @@ const ENV_VAR_NAMES: Record<LlmProvider, string> = {
   openai: "OPENAI_API_KEY",
   google: "GEMINI_API_KEY",
   groq: "GROQ_API_KEY",
+  gateway: "AI_GATEWAY_API_KEY",
 };
 
 /** Providers that bill cached prompt prefixes only when asked explicitly. */
@@ -86,6 +89,9 @@ export function resolveModel(modelId: string, provider: LlmProvider = PROVIDER):
       return createGoogleGenerativeAI({ apiKey })(modelId);
     case "groq":
       return createGroq({ apiKey })(modelId);
+    case "gateway":
+      // Gateway model ids are creator-namespaced, e.g. "openai/gpt-5-mini".
+      return createGateway({ apiKey })(modelId);
     default: {
       // Unreachable while the env enum and this switch agree; the assignment makes
       // TypeScript enforce that they do.

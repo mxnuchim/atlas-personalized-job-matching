@@ -176,6 +176,11 @@ async function scoreJob(params: {
     system,
     prompt: buildJobContext(job),
     model: MODELS.scoring,
+    // Reasoning is ~90% of the scoring bill (it bills as output). Measured on real jobs,
+    // "low" halves cost while preserving the ranking that drives tiers (Spearman ρ 0.888
+    // vs default) and keeping visa/relocation red-flags intact (8/8 retained). See
+    // `scoring:ab` and `scoring:visa-check`, and docs/EXECUTION.md.
+    reasoningEffort: "low",
   });
 
   const row = assessmentToMatch({

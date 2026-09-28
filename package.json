@@ -26,7 +26,9 @@
     "llm:smoke": "tsx --conditions=react-server src/lib/llm/smoke.ts",
     "llm:smoke:jev": "tsx --conditions=react-server src/lib/llm/jev-smoke.ts",
     "scoring:calibrate": "tsx --conditions=react-server src/pipeline/scoring/calibrate.ts",
-    "scoring:ab": "tsx --conditions=react-server src/pipeline/scoring/ab.ts"
+    "scoring:ab": "tsx --conditions=react-server src/pipeline/scoring/ab.ts",
+    "scoring:visa-check": "tsx --conditions=react-server src/pipeline/scoring/visa-check.ts",
+    "scoring:backfill": "tsx --conditions=react-server src/pipeline/backfill.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.63",

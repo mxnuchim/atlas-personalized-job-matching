@@ -1886,3 +1886,28 @@ Projected backfill ~$11.8 both users / ~$5.9 one. Verdict: adopt low reasoning a
 daily cron matches the backfill; back one user fits the $10 credit, both slightly exceeds it.
 
 **Files.** `src/pipeline/scoring/ab.ts`, `package.json`
+
+---
+
+## 2026-09-28 15:08 — Adopt low-reasoning scoring; Gateway as a selectable provider
+
+**Context.** Backfill decision. Visa/relocation is critical for this candidate, so before dropping
+reasoning I had to confirm dealbreaker detection survives, not just the overall score.
+
+**Action.**
+
+- `scoring:visa-check` re-scored the 8 stored roles flagged for visa/relocation at low reasoning —
+  the flag was kept **8/8**. The `location_fit` number wobbles (~15), the dealbreaker flag does not.
+- Set **`reasoningEffort: "low"`** on scoring (`score.ts`) — halves cost (output 2157→1115 tok/job),
+  ρ 0.888 vs default, tiers 9/12, visa 8/8. Applies to backfill **and** the daily cron, so the
+  corpus stays one setting.
+- Added **`gateway`** as a selectable `LLM_PROVIDER` (`config.ts`/`env.ts`) so a run can bill the
+  prepaid `AI_GATEWAY_API_KEY` credit. Default stays `openai` (direct is cheaper via prompt caching
+  and one less hop in the scheduled run); the gateway is opted into per-process.
+- `pipeline/backfill.ts` (`scoring:backfill`): one-user catch-up via `runScore`, high limit, idempotent.
+
+**Result.** 357 tests green; tsc, lint clean. Pushing so the deployed cron scores at low reasoning.
+Next: backfill manuchim on Neon through the Gateway (spends the $10 credit).
+
+**Files.** `src/pipeline/scoring/{score,visa-check}.ts`, `src/lib/{env,llm/config}.ts`,
+`src/pipeline/backfill.ts`, `package.json`
