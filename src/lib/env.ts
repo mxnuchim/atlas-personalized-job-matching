@@ -50,6 +50,16 @@ const envSchema = z.object({
    * and scoring falls back to the generative model alone.
    */
   AI_GATEWAY_API_KEY: z.string().optional(),
+  /**
+   * Ask the Gateway for Zero Data Retention / no-training on Jev calls. Off by default:
+   * ZDR needs a Vercel Pro/Enterprise plan, and the hobby plan 403s the request. Turn it
+   * on (`"true"`) once the account supports it — the data sent is your profile plus a
+   * public job posting.
+   */
+  AI_GATEWAY_ZERO_RETENTION: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
   /** Parallel LLM calls per run. Keeps a 50-job run off the provider's rate limit. */
   LLM_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(3),
   /** Retries *after* the first attempt, per call. */

@@ -69,7 +69,10 @@ export async function evaluate<
     questions: options.questions,
     maxRetries: LIMITS.maxRetries,
     abortSignal,
-    // Jev supports per-request zero-retention / no-training; ask for it.
-    providerOptions: { gateway: { zeroDataRetention: true } },
+    // Zero-retention / no-training is a Pro/Enterprise Gateway feature; asking for it on
+    // a hobby plan 403s the whole call, so request it only when the account allows it.
+    providerOptions: env.AI_GATEWAY_ZERO_RETENTION
+      ? { gateway: { zeroDataRetention: true } }
+      : undefined,
   });
 }
