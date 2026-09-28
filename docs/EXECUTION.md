@@ -1911,3 +1911,29 @@ Next: backfill manuchim on Neon through the Gateway (spends the $10 credit).
 
 **Files.** `src/pipeline/scoring/{score,visa-check}.ts`, `src/lib/{env,llm/config}.ts`,
 `src/pipeline/backfill.ts`, `package.json`
+
+---
+
+## 2026-09-28 18:36 — Collapsible sidebar and user avatars
+
+**Context.** The horizontal header nav didn't scale to nine items; a collapsible sidebar is
+cleaner to navigate. Plus real avatars for the two users. (Manuchim's backfill finished during this.)
+
+**Action.**
+
+- **`app-shell.tsx`** — the new frame: a fixed left sidebar, collapsible on desktop with the width
+  **persisted in a cookie read server-side** (first paint is the right width — no flash, no
+  setState-in-effect), and a **Radix Dialog drawer** on mobile behind a top-bar hamburger. Active
+  item uses the shared-`layoutId` pill; content offset tracks `--sidebar-w`.
+- **Avatars:** optimized the two committed portraits into `public/avatars/` (sips, ~15 KB each);
+  `lib/avatars.ts` (`avatarFor(email)`) feeds the **existing** `Avatar` component's `image` prop;
+  the sidebar footer (`user-menu`) shows photo + identity. (Restored `avatar.tsx` after I
+  accidentally overwrote it — it already had initials, an `image` prop and a test.)
+- Removed `app-nav.tsx` (replaced); layout reads the sidebar cookie.
+
+**Result.** tsc, lint, 357 tests green. Verified in a shell preview: desktop expanded/collapsed
+(68 px icon rail), dark, and the mobile drawer; avatar photo loads. Manuchim backfill finished:
+**2,179 scored, 333 strong, 0 failed** (~3.1 h, on the $10 Gateway credit). Alabi still running.
+
+**Files.** `src/components/app-shell.tsx`, `src/lib/avatars.ts`, `src/components/user-menu.tsx`,
+`src/app/(app)/layout.tsx`, `public/avatars/*`, removed `src/components/app-nav.tsx`

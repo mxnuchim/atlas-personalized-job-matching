@@ -128,7 +128,7 @@ The permitted set (✓ built · ◇ M6 target):
 4. ✓ **Press feedback** on interactive controls (`ui/button.tsx`: dip + scale 0.98 on the shared curve).
 5. ◇ **Hover** only where it means something (rows, cards, links) — a quiet lift/tint.
 6. ◇ **Focus-visible** rings animate in; inputs transition on focus.
-7. ✓ **Nav active indicator slides** between tabs (`app-nav.tsx`, shared `layoutId`, `SPRING.snappy`).
+7. ✓ **Nav active indicator slides** between items (`app-shell.tsx` sidebar, shared `layoutId`, `SPRING.snappy`).
 8. ◇ **Match drawer opens as a shared-element transition** from its row — the signature moment.
 9. ✓ **List choreography** — the review queue collapses a decided card and its neighbors settle
    (`review-queue.tsx`, layout + exit). The matches table is left still by design: a 200-row `<tr>`
@@ -360,7 +360,8 @@ a row in `users` rather than a rewrite.
 | `match-drawer` | client | Radix Dialog as a right sheet. The one component with a real shadow |
 | `match-card` | client | A top match on Today. Gauge + why-you + strength chips + red flags. Participates in the orchestrated reveal |
 | `review-queue` | client | The draft queue. Keyboard-driven (`j`/`k`/`a`/`s`/`e`/`esc`), inline edit, optimistic approve/skip with rollback |
-| `app-nav` | client | Needs `usePathname()` for active state; sets `aria-current="page"` |
+| `app-shell` | client | The frame: collapsible left sidebar (desktop, cookie-persisted width) + mobile drawer (Radix Dialog). Owns nav, active pill, account footer. Content offset tracks `--sidebar-w` |
+| `avatar` | server | Face or name-derived initials tile; `image` prop, `avatarFor(email)` supplies the two known photos |
 | `theme-toggle` | client | Renders both icons and swaps with `dark:hidden`/`dark:block` to avoid hydration mismatch |
 | `user-menu` | client | Radix dropdown; sign-out is a `<form action={signOutAction}>` |
 | `logo` | server | Inline SVG four-point star, `currentColor` |
@@ -385,8 +386,9 @@ Known inconsistencies. Fix when you're next in the file; don't add to them.
 - **`cn` has two import paths.** App components import from `@/lib/utils`; every `ui/*`
   file imports from `"cn"` directly. `@/lib/utils` is a one-line re-export of the same
   function. Pick `@/lib/utils` and converge.
-- **`--sidebar-*` and `--chart-*` token families are unused.** There is no sidebar (nav
-  is a horizontal header) and no charts. Leave them until a real need appears, then
+- **`--sidebar-*` and `--chart-*` token families are unused.** The sidebar (`app-shell`) uses
+  the semantic tokens (`bg-card`, `border`) rather than the `--sidebar-*` family, and there are no
+  charts. Leave them until a real need appears, then
   either use or delete — don't half-adopt.
 - **The matches table has no `a`/`s`/`e` shortcuts — by design.** A match is not approved or
   skipped; that is the review queue, which now drives `a`/`s`/`e` (M6 phase 3). The table stays
