@@ -1819,3 +1819,27 @@ calibration pass are blocked until the card is added.
 
 **Files.** `src/lib/llm/{evaluate,jev-smoke}.ts`, `src/lib/llm/index.ts`, `src/lib/env.ts`,
 `.env.example`, `package.json`
+
+---
+
+## 2026-09-28 13:53 — Jev scorer + calibration harness (blocked on paid credits)
+
+**Context.** Card added, ZDR made opt-in. Next: the numeric scorer and the calibration pass.
+
+**Action.**
+
+- **`pipeline/scoring/jev.ts`** — the numeric fit scorer. Maps the §9 rubric onto Jev `score`
+  questions (overall + 5 dimensions + one per strength), sends profile + job as state, and
+  rescales each answer (a weighted mean over rubric levels) back to 0-100. No prose — `why_you`
+  / `reasoning` stay on `generateStructured`, run only for the shortlist in the eventual split.
+- **`pipeline/scoring/calibrate.ts`** + `scoring:calibrate` — re-scores N already-LLM-scored
+  jobs with Jev and reports Spearman (rank) + Pearson + MAE on `overall`, per-dimension MAE, and
+  Jev cost (with a 2,000-job projection). Retries transient 429s with backoff.
+
+**Result.** tsc + lint clean. Calibration could not complete: with the card in place and ZDR
+opt-in, the Gateway now returns "Free tier users do not have access to this model — upgrade to
+paid credits." **Jev needs paid credits (a top-up)** on the Vercel AI Gateway account, not just a
+card on file. Nothing is wired into the live pipeline; the scorer and calibration are staged to
+run the moment credits are added, and only then does the split get wired and the backfill run.
+
+**Files.** `src/pipeline/scoring/{jev,calibrate}.ts`, `package.json`
