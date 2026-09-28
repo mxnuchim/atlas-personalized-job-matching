@@ -1794,3 +1794,28 @@ straight from the daily queue without the detour.
 **Result.** 357 tests green; lint, typecheck and build clean. Verified in `/preview`.
 
 **Files.** `src/components/match-card.tsx`
+
+---
+
+## 2026-09-28 13:40 — Jev: the evaluation primitive (calibration blocked on a Gateway card)
+
+**Context.** Sign-off to add Jev (TypeSafe AI's System-1 model) to cut scoring cost. It returns
+typed decisions (score / choice / boolean) with no prose, ~100x cheaper — a fit for the numeric
+half of scoring, not the why-you / reasoning text, which stays on `generateStructured`.
+
+**Action.**
+
+- **`lib/llm/evaluate.ts`** — wraps AI SDK's `experimental_evaluate` behind the same boundary
+  (only `lib/llm` names the Gateway or reads its key), via `@ai-sdk/gateway` and model
+  `typesafe-ai/jev`. Answer types are inferred from the questions; same timeout/retry budget as
+  `generateStructured`. Exposed through `lib/llm/index.ts`.
+- **`AI_GATEWAY_API_KEY`** added to `env.ts` and `.env.example`; `llm:smoke:jev` script.
+
+**Result.** tsc, lint and the 50 `lib/llm` tests green. The smoke call **reached the Gateway and
+authenticated** — the request is well-formed — but returned `customer_verification_required`:
+the AI Gateway account needs a **credit card on file** to service requests, even to unlock the
+free credits. So the seam is verified to the API boundary; the numeric scorer and the
+calibration pass are blocked until the card is added.
+
+**Files.** `src/lib/llm/{evaluate,jev-smoke}.ts`, `src/lib/llm/index.ts`, `src/lib/env.ts`,
+`.env.example`, `package.json`

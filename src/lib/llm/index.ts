@@ -13,6 +13,9 @@
 export { generateStructured, mapWithConcurrency, addUsage, emptyUsageTotals } from "./client";
 export type { TokenUsage, GenerateStructuredOptions } from "./client";
 
+export { evaluate, isEvaluationConfigured, JEV_MODEL_ID, JEV_INPUT_USD_PER_MTOK } from "./evaluate";
+export type { EvaluationQuestion, EvaluationState } from "./evaluate";
+
 export { MODELS, PROVIDER, LIMITS, configuredProviders } from "./config";
 export type { LlmProvider } from "./config";
 

@@ -43,6 +43,13 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
   GROQ_API_KEY: z.string().optional(),
+  /**
+   * Vercel AI Gateway key — used only to reach Jev (`typesafe-ai/jev`), TypeSafe AI's
+   * System-1 evaluation model, which returns typed decisions (score/choice/boolean)
+   * instead of text. Scoring uses it for the numeric fit; unset = Jev scoring is off
+   * and scoring falls back to the generative model alone.
+   */
+  AI_GATEWAY_API_KEY: z.string().optional(),
   /** Parallel LLM calls per run. Keeps a 50-job run off the provider's rate limit. */
   LLM_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(3),
   /** Retries *after* the first attempt, per call. */
