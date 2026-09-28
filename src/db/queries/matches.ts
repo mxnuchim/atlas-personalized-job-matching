@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, notExists, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, notExists, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -14,6 +14,7 @@ import { isStale, relativeAge } from "@/lib/age";
 import { capPerCompany } from "@/lib/queue";
 import { extractContact } from "@/lib/contact";
 import { htmlToText } from "@/lib/html";
+import { clampPage, offsetOf, paginated, type PageParams, type Paginated } from "@/lib/pagination";
 import { MIN_FOR_RANK, TIER_SHARES, type FitTier } from "@/lib/scoring";
 
 export type MatchWithJob = Match & { job: Job };
@@ -141,6 +142,84 @@ export async function listMatchRows(profileId: string, limit = 200): Promise<Mat
   const now = new Date();
 
   return rows.map(({ matches: m, jobs: j }) => toMatchRow(m, j, now));
+}
+
+export type MatchSort = "overall" | "title" | "company" | "location" | "postedAt";
+
+export type MatchListParams = PageParams & {
+  tier?: FitTier;
+  q?: string;
+  sort?: MatchSort;
+  dir?: "asc" | "desc";
+};
+
+/**
+ * The Matches console, filtered/sorted/paginated in SQL. At thousands of rows the whole
+ * list can't go to the client, so tier, search and sort are URL-driven and resolved here;
+ * the count query shares the same filters so "X of N" is always honest.
+ */
+export async function listMatchRowsPage(
+  profileId: string,
+  { page, pageSize, tier, q, sort = "overall", dir = "desc" }: MatchListParams,
+): Promise<Paginated<MatchRow>> {
+  const filters = [eq(matches.profileId, profileId)];
+  if (tier) filters.push(eq(matches.tier, tier));
+  const needle = q?.trim();
+  if (needle) {
+    const like = `%${needle}%`;
+    filters.push(
+      or(ilike(jobs.title, like), ilike(jobs.company, like), ilike(jobs.location, like))!,
+    );
+  }
+  const where = and(...filters);
+
+  const [counted] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(matches)
+    .innerJoin(jobs, eq(matches.jobId, jobs.id))
+    .where(where);
+  const total = counted?.count ?? 0;
+  const safePage = clampPage(page, total, pageSize);
+
+  const rows = await db
+    .select()
+    .from(matches)
+    .innerJoin(jobs, eq(matches.jobId, jobs.id))
+    .where(where)
+    .orderBy(...orderFor(sort, dir))
+    .limit(pageSize)
+    .offset(offsetOf(safePage, pageSize));
+
+  const now = new Date();
+  return paginated(
+    rows.map(({ matches: m, jobs: j }) => toMatchRow(m, j, now)),
+    total,
+    safePage,
+    pageSize,
+  );
+}
+
+/** Column → ORDER BY, always with a stable tiebreak so pages never shuffle a row. */
+function orderFor(sort: MatchSort, dir: "asc" | "desc") {
+  const d = dir === "asc" ? asc : desc;
+  switch (sort) {
+    case "title":
+      return [d(jobs.title), desc(matches.overall)];
+    case "company":
+      return [d(jobs.company), desc(matches.overall)];
+    case "location":
+      return [d(jobs.location), desc(matches.overall)];
+    case "postedAt":
+      // Undated postings sort last either way, not as if they were the oldest.
+      return [
+        dir === "asc"
+          ? sql`${jobs.postedAt} asc nulls last`
+          : sql`${jobs.postedAt} desc nulls last`,
+        desc(matches.overall),
+      ];
+    default:
+      return [d(matches.overall), desc(matches.scoredAt)];
+  }
 }
 
 /** One place that turns a (match, job) pair into what the UI renders. */

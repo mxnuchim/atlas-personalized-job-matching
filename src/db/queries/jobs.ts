@@ -2,6 +2,13 @@ import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm
 
 import { db } from "@/db";
 import { jobs, type Job } from "@/db/schema";
+import {
+  clampPage,
+  offsetOf,
+  type PageParams,
+  paginated,
+  type Paginated,
+} from "@/lib/pagination";
 
 /**
  * How fresh a posting has to be to appear on the Jobs screen.
@@ -47,18 +54,46 @@ export async function listJobs(
   window: FreshnessKey = DEFAULT_FRESHNESS,
   limit = 200,
 ): Promise<Job[]> {
-  const cutoff = since(window);
-
   return db
     .select()
     .from(jobs)
-    .where(
-      cutoff
-        ? and(isNull(jobs.closedAt), isNotNull(jobs.postedAt), gte(jobs.postedAt, cutoff))
-        : isNull(jobs.closedAt),
-    )
+    .where(freshnessWhere(window))
     .orderBy(desc(jobs.postedAt), desc(jobs.firstSeenAt))
     .limit(limit);
+}
+
+/** The open/dated/in-window predicate, shared by the list and its count. */
+function freshnessWhere(window: FreshnessKey) {
+  const cutoff = since(window);
+  return cutoff
+    ? and(isNull(jobs.closedAt), isNotNull(jobs.postedAt), gte(jobs.postedAt, cutoff))
+    : isNull(jobs.closedAt);
+}
+
+/**
+ * Postings in the window, paginated in SQL. Same shape and discipline as the matches
+ * console — the count query shares the exact predicate, so "X–Y of N" never disagrees
+ * with the rows below it, and an out-of-range `?page=` clamps to the last page.
+ */
+export async function listJobsPage(
+  window: FreshnessKey,
+  { page, pageSize }: PageParams,
+): Promise<Paginated<Job>> {
+  const where = freshnessWhere(window);
+
+  const [counted] = await db.select({ count: sql<number>`count(*)::int` }).from(jobs).where(where);
+  const total = counted?.count ?? 0;
+  const safePage = clampPage(page, total, pageSize);
+
+  const rows = await db
+    .select()
+    .from(jobs)
+    .where(where)
+    .orderBy(desc(jobs.postedAt), desc(jobs.firstSeenAt))
+    .limit(pageSize)
+    .offset(offsetOf(safePage, pageSize));
+
+  return paginated(rows, total, safePage, pageSize);
 }
 
 export async function countJobs(): Promise<number> {

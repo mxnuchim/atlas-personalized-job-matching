@@ -4,14 +4,16 @@ import { InboxIcon } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { Pagination } from "@/components/pagination";
 import {
   countJobsByFreshness,
   FRESHNESS_WINDOWS,
-  listJobs,
+  listJobsPage,
   parseFreshness,
   type FreshnessKey,
 } from "@/db/queries/jobs";
 import { isStale, relativeAge } from "@/lib/age";
+import { parsePageParams } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -26,10 +28,16 @@ const WINDOW_KEYS = Object.keys(FRESHNESS_WINDOWS) as FreshnessKey[];
 export default async function JobsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ window?: string }>;
+  searchParams: Promise<{ window?: string; page?: string; pageSize?: string }>;
 }) {
-  const window = parseFreshness((await searchParams).window);
-  const [jobs, counts] = await Promise.all([listJobs(window), countJobsByFreshness()]);
+  const sp = await searchParams;
+  const window = parseFreshness(sp.window);
+  const { page, pageSize } = parsePageParams(sp);
+  const [jobsPage, counts] = await Promise.all([
+    listJobsPage(window, { page, pageSize }),
+    countJobsByFreshness(),
+  ]);
+  const jobs = jobsPage.items;
 
   const now = new Date();
   const label = FRESHNESS_WINDOWS[window].label.toLowerCase();
@@ -40,15 +48,13 @@ export default async function JobsPage({
         title="Jobs"
         description={
           // A board returns every open requisition, not new ones, so the count only
-          // means something once the window it covers is stated alongside it. Report
-          // the true total, not `jobs.length` — that is the page cap, and printing it
-          // claimed "200 posted in the last 48 hours" when there were 458.
+          // means something once the window it covers is stated alongside it. The pager
+          // below carries the "X–Y of N" detail, so the header just frames the window.
           counts[window] === 0
             ? `Every posting Atlas has ingested, before scoring.`
-            : (window === "all"
-                ? `${counts.all} ingested, newest posting first.`
-                : `${counts[window]} posted in the last ${label}, newest first.`) +
-              (jobs.length < counts[window] ? ` Showing the first ${jobs.length}.` : "")
+            : window === "all"
+              ? `${counts.all} ingested, newest posting first.`
+              : `${counts[window]} posted in the last ${label}, newest first.`
         }
       />
 
@@ -136,6 +142,14 @@ export default async function JobsPage({
           })}
         </ul>
       )}
+
+      <Pagination
+        page={jobsPage.page}
+        totalPages={jobsPage.totalPages}
+        total={jobsPage.total}
+        from={jobsPage.from}
+        to={jobsPage.to}
+      />
     </div>
   );
 }

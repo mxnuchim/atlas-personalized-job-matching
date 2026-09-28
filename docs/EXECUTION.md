@@ -1937,3 +1937,50 @@ cleaner to navigate. Plus real avatars for the two users. (Manuchim's backfill f
 
 **Files.** `src/components/app-shell.tsx`, `src/lib/avatars.ts`, `src/components/user-menu.tsx`,
 `src/app/(app)/layout.tsx`, `public/avatars/*`, removed `src/components/app-nav.tsx`
+
+---
+
+## 2026-09-28 21:05 — Reusable pagination + URL-driven matches console
+
+**Context.** With the backfill in, the lists run to thousands of rows — Matches ~2.3k, Jobs in
+the hundreds per window, Runs unbounded over time. The console was client-side (whole list shipped,
+then sliced), and Today only surfaces the day's ~30-strong queue. The ask: paginate every long list,
+make filter/sort first-class, and give Matches a "see them all and apply aggressively" flow.
+
+**Action.**
+
+- **One pagination contract** (`lib/pagination.ts`): `Paginated<T>` (items + page/total/… + `from`/`to`
+  for "X–Y of N"), `parsePageParams` (reads `?page`/`?pageSize`, clamped), `offsetOf`, `clampPage`
+  (an out-of-range page lands on the last, never a void), `paginated()` to assemble. Shared by the
+  queries that produce it, the pages that read the URL, and the control that renders it.
+- **`<Pagination>`** (`components/pagination.tsx`): URL-driven, preserves every other query param, real
+  `<Link>`s (Next prefetches neighbours). Compact window — first/last/current±1 with ellipsis gaps.
+- **Matches, now resolved in SQL** (`db/queries/matches.ts` `listMatchRowsPage`): tier, search
+  (`ilike` on title/company/location) and sort all come from the URL; the count query shares the
+  filters so the tally never lies; every sort carries a stable tiebreak so pages don't shuffle.
+  `matches-table.tsx` rewritten to consume `Paginated<MatchRow>` + URL params (was client
+  useState) and gains a **per-row Apply** (opens the posting, `stopPropagation` so it doesn't open the
+  drawer) — the point of the page is to apply fast. Keyboard nav (`j`/`k`/`enter`/`/`) and the drawer
+  kept; search is uncontrolled + debounced and remounts on external `q` change (no setState-in-effect).
+- **Jobs and Runs** paginated the same way (`listJobsPage`, `listRunsPage`); their headers now frame
+  the window/total and the pager carries the "X–Y of N".
+- **Fixed** two inline `cubic-bezier`s in `app-shell.tsx` (Phase 1) → `ease-(--ease-standard)` +
+  `duration-(--duration-base)` tokens — the motion single-source test caught them.
+
+**Result.** tsc, lint clean; **357 tests green**. Verified in preview at 375 px and desktop: table
+collapses to Fit·Role·Apply (columns return at sm/md/lg), filter + tier chips wrap, the pager renders
+`‹ 1 … 3 4 5 … 9 ›` and fits the phone; the mobile sidebar drawer opens with the full nav. The real
+`/matches`, `/jobs`, `/runs` routes compile and run (redirect to login server-side, no overlay).
+Where to see all strong matches → **Matches**, filter `Strong`, and Apply straight from each row.
+
+**Files.** `src/lib/pagination.ts`, `src/components/{pagination,matches-table}.tsx`,
+`src/app/(app)/{matches,jobs,runs}/page.tsx`, `src/db/queries/{matches,jobs,runs}.ts`,
+`src/components/app-shell.tsx`
+
+**Backfill note (same session).** Both users complete on Neon via the Gateway credit.
+Manuchim: **2,309 scored / 347 strong** (819 possible, 1,143 stretch). Alabi finished at
+**2,303 / 349 strong** (811 possible, 1,143 stretch) — 2,226 scored this run over 346 min,
+**6 failed** (Gateway timeouts; unscored, so the next daily cron retries them — `runScore` is
+idempotent). Confirmed `runScore` calls `recalibrateTiers` on completion (`scoring/score.ts:130`):
+Alabi's mid-run 25-strong rank-rebalanced to 349 exactly as expected, no fix needed. The two
+distributions now match, which is the reassuring sign that rank-based tiering is population-stable.

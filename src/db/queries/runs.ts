@@ -1,7 +1,14 @@
-import { desc, eq, isNotNull } from "drizzle-orm";
+import { desc, eq, isNotNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { runs, type Run, type RunError } from "@/db/schema";
+import {
+  clampPage,
+  offsetOf,
+  type PageParams,
+  paginated,
+  type Paginated,
+} from "@/lib/pagination";
 
 export type RunStatus = Run["status"];
 
@@ -67,6 +74,22 @@ export async function failRun(id: string, message: string): Promise<void> {
 
 export async function listRuns(limit = 50): Promise<Run[]> {
   return db.select().from(runs).orderBy(desc(runs.startedAt)).limit(limit);
+}
+
+/** The runs history, paginated in SQL — newest first, so page 1 is always the latest. */
+export async function listRunsPage({ page, pageSize }: PageParams): Promise<Paginated<Run>> {
+  const [counted] = await db.select({ count: sql<number>`count(*)::int` }).from(runs);
+  const total = counted?.count ?? 0;
+  const safePage = clampPage(page, total, pageSize);
+
+  const rows = await db
+    .select()
+    .from(runs)
+    .orderBy(desc(runs.startedAt))
+    .limit(pageSize)
+    .offset(offsetOf(safePage, pageSize));
+
+  return paginated(rows, total, safePage, pageSize);
 }
 
 /**

@@ -1,41 +1,43 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownIcon, ArrowUpIcon, SearchIcon } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ArrowDownIcon, ArrowUpIcon, ExternalLinkIcon, SearchIcon } from "lucide-react";
 
 import { FitGauge } from "@/components/fit-gauge";
 import { MatchDrawer } from "@/components/match-drawer";
+import { Pagination } from "@/components/pagination";
 import { TierChip } from "@/components/tier-chip";
-import type { MatchRow } from "@/db/queries/matches";
+import type { MatchRow, MatchSort } from "@/db/queries/matches";
+import type { Paginated } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
 import { type FitTier, TIER_LABELS } from "@/lib/scoring";
 
 /**
- * The console table (PRD §10.3). Keyboard-first: `j`/`k` move, `enter` opens,
- * `/` jumps to the filter, `escape` clears it. Rows are anchored by the fit score.
+ * The console table (PRD §10.3), now URL-driven so it scales past one screen.
  *
- * Follows the ARIA grid pattern with a roving tabindex — exactly one row is in the
- * tab order at a time, so Tab moves past the table rather than through 200 rows,
- * and `j`/`k` move focus within it.
+ * Tier, search, sort and page all live in the query string and are resolved in SQL —
+ * the list runs to thousands of rows, so it can't come to the client to be sliced.
+ * Keyboard-first within a page: `j`/`k` move, `enter` opens the drawer, `/` jumps to
+ * the filter, `escape` clears it. Each row also carries a direct Apply, so a strong
+ * match is one click from its posting — the point of the page is to apply, fast.
  *
- * No motion here beyond focus: the score gauges are the only thing that animates,
- * and they do it once (§10.4/§10.5 — no fade-up on every row).
+ * Follows the ARIA grid pattern with a roving tabindex — exactly one row is in the tab
+ * order at a time, so Tab moves past the table rather than through every row.
  */
 
-type SortKey = "overall" | "title" | "company" | "location" | "postedAt";
 type SortDir = "asc" | "desc";
 
 const TIER_FILTERS: (FitTier | "all")[] = ["all", "strong", "possible", "stretch"];
 
-const COLUMNS: { key: SortKey; label: string; className: string }[] = [
-  { key: "overall", label: "Fit", className: "w-[92px] pl-5" },
+const COLUMNS: { key: MatchSort; label: string; className: string }[] = [
+  { key: "overall", label: "Fit", className: "w-[84px] pl-5" },
   { key: "title", label: "Role", className: "min-w-0" },
   { key: "company", label: "Company", className: "hidden w-[150px] md:table-cell" },
-  { key: "location", label: "Location", className: "hidden w-[170px] lg:table-cell" },
-  // When the role was posted, not when Atlas scored it: the scoring date is an
-  // internal detail, while how long a req has been open changes how you treat it.
-  // The scored date and model still show in the drawer footer.
-  { key: "postedAt", label: "Posted", className: "hidden w-[92px] pr-5 sm:table-cell" },
+  { key: "location", label: "Location", className: "hidden w-[160px] lg:table-cell" },
+  // When the role was posted, not when Atlas scored it: the scoring date is an internal
+  // detail, while how long a req has been open changes how you treat it.
+  { key: "postedAt", label: "Posted", className: "hidden w-[88px] sm:table-cell" },
 ];
 
 /** A key cap. Sans, not monospace — monospace labels are an anti-pattern here. */
@@ -48,79 +50,63 @@ function Key({ children }: { children: React.ReactNode }) {
 }
 
 export function MatchesTable({
-  matches,
+  page,
   strengthLabels,
+  tier,
+  q,
+  sort,
+  dir,
 }: {
-  matches: MatchRow[];
+  page: Paginated<MatchRow>;
   strengthLabels: Record<string, string>;
+  tier: FitTier | "all";
+  q: string;
+  sort: MatchSort;
+  dir: SortDir;
 }) {
-  const [query, setQuery] = useState("");
-  const [tier, setTier] = useState<FitTier | "all">("all");
-  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
-    key: "overall",
-    dir: "desc",
-  });
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const rows = page.items;
   const [cursor, setCursor] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const rowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
-  /** Only move focus for keyboard navigation — never steal it on mount or filter. */
+  /** Only move focus for keyboard navigation — never steal it on mount or when a page lands. */
   const shouldFocusRow = useRef(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const rows = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const filtered = matches.filter((m) => {
-      if (tier !== "all" && m.tier !== tier) return false;
-      if (!needle) return true;
-      return (
-        m.title.toLowerCase().includes(needle) ||
-        m.company.toLowerCase().includes(needle) ||
-        (m.location ?? "").toLowerCase().includes(needle)
-      );
-    });
-
-    const dir = sort.dir === "asc" ? 1 : -1;
-    return [...filtered].sort((a, b) => {
-      switch (sort.key) {
-        case "overall":
-          return (a.overall - b.overall) * dir;
-        case "postedAt":
-          // Undated postings sort last in either direction rather than pretending
-          // to be the oldest, which an empty string would do.
-          if (!a.postedAt && !b.postedAt) return 0;
-          if (!a.postedAt) return 1;
-          if (!b.postedAt) return -1;
-          return a.postedAt.localeCompare(b.postedAt) * dir;
-        case "location":
-          return (a.location ?? "").localeCompare(b.location ?? "") * dir;
-        default:
-          return a[sort.key].localeCompare(b[sort.key]) * dir;
-      }
-    });
-  }, [matches, query, tier, sort]);
-
-  // Derived, not stored: filtering can shrink the list under the cursor, and
+  // Derived, not stored: a filter change can shrink the list under the cursor, and
   // clamping during render avoids the cascading re-render an effect would cause.
   const activeIndex = Math.min(cursor, Math.max(0, rows.length - 1));
 
-  // Focus is genuinely external state, so this one belongs in an effect.
+  const pushParams = useCallback(
+    (updates: Record<string, string | null>, resetPage = true) => {
+      const sp = new URLSearchParams(searchParams);
+      for (const [key, value] of Object.entries(updates)) {
+        if (!value) sp.delete(key);
+        else sp.set(key, value);
+      }
+      // Any filter/sort/search change invalidates the page number — start over at 1.
+      if (resetPage) sp.delete("page");
+      const qs = sp.toString();
+      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [router, pathname, searchParams],
+  );
+
+  // Focus is genuinely external state, so this belongs in an effect — but only fires
+  // when a keypress asked for it, never on mount or on a fresh page of results.
   useEffect(() => {
     if (!shouldFocusRow.current) return;
     shouldFocusRow.current = false;
     rowRefs.current[activeIndex]?.focus();
   }, [activeIndex]);
 
-  const move = useCallback(
-    (delta: number) => {
-      shouldFocusRow.current = true;
-      setCursor((i) => Math.max(0, Math.min(rows.length - 1, i + delta)));
-    },
-    [rows.length],
-  );
-
-  // Page-level shortcuts. Deliberately inert while the drawer is open (its own
-  // focus trap owns the keyboard) or while typing in a field.
+  // Page-level shortcuts. Deliberately inert while the drawer is open (its own focus
+  // trap owns the keyboard) or while typing in a field.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (openId) return;
@@ -136,7 +122,8 @@ export function MatchesTable({
         return;
       }
       if (event.key === "Escape" && typing) {
-        setQuery("");
+        if (searchRef.current) searchRef.current.value = "";
+        pushParams({ q: null });
         searchRef.current?.blur();
         return;
       }
@@ -144,10 +131,12 @@ export function MatchesTable({
 
       if (event.key === "j" || event.key === "ArrowDown") {
         event.preventDefault();
-        move(1);
+        shouldFocusRow.current = true;
+        setCursor(Math.min(rows.length - 1, activeIndex + 1));
       } else if (event.key === "k" || event.key === "ArrowUp") {
         event.preventDefault();
-        move(-1);
+        shouldFocusRow.current = true;
+        setCursor(Math.max(0, activeIndex - 1));
       } else if (event.key === "Enter" && rows[activeIndex]) {
         event.preventDefault();
         setOpenId(rows[activeIndex].id);
@@ -156,15 +145,25 @@ export function MatchesTable({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [move, openId, rows, activeIndex]);
+  }, [openId, rows, activeIndex, pushParams]);
 
-  function toggleSort(key: SortKey) {
-    setSort((s) =>
-      s.key === key
-        ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
+  // Debounce typing into the URL so every keystroke isn't a navigation.
+  function onSearchChange(value: string) {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => pushParams({ q: value.trim() || null }), 300);
+  }
+
+  function toggleSort(key: MatchSort) {
+    const nextDir: SortDir =
+      key === sort
+        ? dir === "asc"
+          ? "desc"
+          : "asc"
         : // Scores and dates are most useful highest-first; names A–Z.
-          { key, dir: key === "overall" || key === "postedAt" ? "desc" : "asc" },
-    );
+          key === "overall" || key === "postedAt"
+          ? "desc"
+          : "asc";
+    pushParams({ sort: key, dir: nextDir });
   }
 
   const openMatch = rows.find((m) => m.id === openId) ?? null;
@@ -175,10 +174,13 @@ export function MatchesTable({
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
           <SearchIcon className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <input
+            // Remount when the URL's q changes (e.g. back button) so the field stays in
+            // sync without a state-syncing effect.
+            key={q}
             ref={searchRef}
             type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            defaultValue={q}
+            onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Filter by role, company or location"
             aria-label="Filter matches"
             className="border-input bg-card focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-lg border py-2 pr-3 pl-9 text-sm transition-colors focus-visible:ring-3 focus-visible:outline-none"
@@ -194,7 +196,7 @@ export function MatchesTable({
             <button
               key={t}
               type="button"
-              onClick={() => setTier(t)}
+              onClick={() => pushParams({ tier: t === "all" ? null : t })}
               aria-pressed={tier === t}
               className={cn(
                 "focus-visible:ring-ring rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none",
@@ -211,7 +213,7 @@ export function MatchesTable({
 
       {rows.length === 0 ? (
         <p className="text-muted-foreground rounded-xl border border-dashed px-5 py-10 text-center text-sm">
-          Nothing matches that filter. Clear it to see all {matches.length} scored roles.
+          Nothing matches those filters. Clear them to see all {page.total} scored roles.
         </p>
       ) : (
         <div className="overflow-hidden rounded-xl border">
@@ -227,11 +229,7 @@ export function MatchesTable({
                     scope="col"
                     className={cn("py-2.5 text-left font-medium", col.className)}
                     aria-sort={
-                      sort.key === col.key
-                        ? sort.dir === "asc"
-                          ? "ascending"
-                          : "descending"
-                        : "none"
+                      sort === col.key ? (dir === "asc" ? "ascending" : "descending") : "none"
                     }
                   >
                     <button
@@ -240,8 +238,8 @@ export function MatchesTable({
                       className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex items-center gap-1 rounded transition-colors focus-visible:ring-2 focus-visible:outline-none"
                     >
                       {col.label}
-                      {sort.key === col.key ? (
-                        sort.dir === "asc" ? (
+                      {sort === col.key ? (
+                        dir === "asc" ? (
                           <ArrowUpIcon className="size-3" />
                         ) : (
                           <ArrowDownIcon className="size-3" />
@@ -250,11 +248,11 @@ export function MatchesTable({
                     </button>
                   </th>
                 ))}
-                <th
-                  scope="col"
-                  className="hidden w-[104px] pr-5 text-left font-medium sm:table-cell"
-                >
+                <th scope="col" className="hidden w-[92px] text-left font-medium sm:table-cell">
                   <span className="text-muted-foreground">Tier</span>
+                </th>
+                <th scope="col" className="w-[52px] pr-4">
+                  <span className="sr-only">Apply</span>
                 </th>
               </tr>
             </thead>
@@ -265,9 +263,8 @@ export function MatchesTable({
                   ref={(el) => {
                     rowRefs.current[index] = el;
                   }}
-                  // Roving tabindex: exactly one row is in the tab order, so Tab
-                  // steps past the table instead of through every row. Focus is the
-                  // selection — `aria-selected` would be invalid on a plain table.
+                  // Roving tabindex: exactly one row is in the tab order, so Tab steps
+                  // past the table instead of through every row.
                   tabIndex={index === activeIndex ? 0 : -1}
                   onClick={() => {
                     setCursor(index);
@@ -299,7 +296,7 @@ export function MatchesTable({
                   <td className="text-muted-foreground hidden truncate py-2.5 pr-3 lg:table-cell">
                     {match.location ?? (match.remote ? "Remote" : "—")}
                   </td>
-                  <td className="text-muted-foreground hidden py-2.5 pr-5 text-xs tabular-nums sm:table-cell">
+                  <td className="text-muted-foreground hidden py-2.5 text-xs tabular-nums sm:table-cell">
                     {match.closed ? (
                       <span className="text-destructive">Closed</span>
                     ) : (
@@ -311,8 +308,21 @@ export function MatchesTable({
                       </span>
                     )}
                   </td>
-                  <td className="hidden py-2.5 pr-5 sm:table-cell">
+                  <td className="hidden py-2.5 sm:table-cell">
                     <TierChip tier={match.tier} />
+                  </td>
+                  <td className="py-2.5 pr-4 text-right">
+                    <a
+                      href={match.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={`Apply to ${match.title} (opens the posting)`}
+                      title="Apply — open the posting"
+                      className="text-muted-foreground hover:text-primary-ink hover:bg-secondary focus-visible:ring-ring inline-flex rounded-md p-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                    >
+                      <ExternalLinkIcon className="size-4" />
+                    </a>
                   </td>
                 </tr>
               ))}
@@ -320,6 +330,14 @@ export function MatchesTable({
           </table>
         </div>
       )}
+
+      <Pagination
+        page={page.page}
+        totalPages={page.totalPages}
+        total={page.total}
+        from={page.from}
+        to={page.to}
+      />
 
       <p className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
         <Key>j</Key>

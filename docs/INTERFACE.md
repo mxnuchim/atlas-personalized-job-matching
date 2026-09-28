@@ -379,6 +379,27 @@ green when satisfied and amber when not, with the unmet one stated in plain word
 Dots use `--tier-strong` / `--tier-possible`, not new colours: satisfied and
 caveat already have semantics in this system.
 
+## 10b. Long lists: pagination, filter, sort
+
+Any list that can outgrow a screen is resolved on the server and driven by the URL, never
+sliced on the client. The rule of thumb: if the corpus can reach the hundreds, it paginates.
+
+- **One shape.** `Paginated<T>` (`lib/pagination.ts`) is the single contract — the query
+  returns it, the page reads `?page`/`?pageSize` with `parsePageParams`, and `<Pagination>`
+  renders it. A query's `count(*)` shares the *exact* filter of its `select`, so "X–Y of N"
+  can never disagree with the rows. An out-of-range `?page=` clamps to the last page.
+- **State lives in the URL, not the component.** Tier, search, sort, page are query params —
+  a filtered view is shareable, the back button works, and the server does the work. The
+  client island holds only ephemeral UI state (cursor, open drawer). Changing any
+  filter/sort/search resets `page` to 1.
+- **`<Pagination>`** preserves every other param, uses real `<Link>`s (Next prefetches the
+  neighbours), and shows a compact first/last/current±1 window with ellipsis gaps. It renders
+  the "X–Y of N" line even on a single page, and hides the stepper when there is only one.
+- **Search is uncontrolled + debounced**, and remounts (`key={q}`) when the URL's value
+  changes externally — syncing from a prop via an effect is the setState-in-effect smell.
+- Applied to Matches, Jobs and Runs. Matches sorts have a stable tiebreak (`overall`, then
+  `scoredAt`) so a row never jumps pages between requests.
+
 ## 11. Open items
 
 Known inconsistencies. Fix when you're next in the file; don't add to them.
@@ -392,9 +413,11 @@ Known inconsistencies. Fix when you're next in the file; don't add to them.
   either use or delete — don't half-adopt.
 - **The matches table has no `a`/`s`/`e` shortcuts — by design.** A match is not approved or
   skipped; that is the review queue, which now drives `a`/`s`/`e` (M6 phase 3). The table stays
-  navigation-only (`j`/`k`/`enter`/`/`). The drawer's primary action is **Apply** (open the
-  posting link); "Draft email" appears only when the posting exposes a real address, since
-  almost every role applies through an ATS form, not by email.
+  navigation-only (`j`/`k`/`enter`/`/`), now over a URL-driven page (tier/search/sort/pagination
+  in the query string — see §10b). Two ways to apply: the drawer's primary **Apply** (open the
+  posting), or the **per-row Apply** icon for ripping through a filtered list without opening each
+  one. "Draft email" appears only when the posting exposes a real address, since almost every role
+  applies through an ATS form, not by email. To work all strong matches: Matches → filter `Strong`.
 - **Pipeline screen is still a static shell.** `outreach` has no queries (M4).
 - **Strength chips in the Cites block do not cap.** Five strengths become five rows on a
   phone. Today's card caps at four; this one deliberately does not, because a draft is

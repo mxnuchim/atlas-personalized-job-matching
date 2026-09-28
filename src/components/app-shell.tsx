@@ -78,7 +78,7 @@ export function AppShell({
     <div className="min-h-dvh" style={{ ["--sidebar-w" as string]: `${width}px` }}>
       {/* Desktop rail: fixed, width-animated. Hidden on mobile in favour of the drawer. */}
       <aside
-        className="bg-card fixed inset-y-0 left-0 z-30 hidden border-r duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] [transition-property:width] md:flex md:flex-col"
+        className="bg-card fixed inset-y-0 left-0 z-30 hidden border-r duration-(--duration-base) ease-(--ease-standard) [transition-property:width] md:flex md:flex-col"
         style={{ width }}
       >
         <SidebarBody
@@ -128,7 +128,7 @@ export function AppShell({
       </Dialog.Root>
 
       {/* Content: left offset tracks the rail width on desktop only. */}
-      <div className="duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] [transition-property:padding] md:pl-[var(--sidebar-w)]">
+      <div className="duration-(--duration-base) ease-(--ease-standard) [transition-property:padding] md:pl-[var(--sidebar-w)]">
         <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">{children}</main>
       </div>
     </div>

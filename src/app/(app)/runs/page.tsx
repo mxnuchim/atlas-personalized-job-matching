@@ -3,8 +3,10 @@ import { ActivityIcon, AlertTriangleIcon } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import { listRuns } from "@/db/queries/runs";
+import { Pagination } from "@/components/pagination";
+import { listRunsPage } from "@/db/queries/runs";
 import { env } from "@/lib/env";
+import { parsePageParams } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -20,8 +22,14 @@ const STATUS_TOKEN = {
   failed: "--destructive",
 } as const;
 
-export default async function RunsPage() {
-  const runs = await listRuns();
+export default async function RunsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; pageSize?: string }>;
+}) {
+  const { page, pageSize } = parsePageParams(await searchParams);
+  const runsPage = await listRunsPage({ page, pageSize });
+  const runs = runsPage.items;
 
   const timeFormat = new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
@@ -37,8 +45,8 @@ export default async function RunsPage() {
       <PageHeader
         title="Runs"
         description={
-          runs.length > 0
-            ? `${runs.length} recorded. Counts, tokens, cost and every error.`
+          runsPage.total > 0
+            ? `${runsPage.total} recorded. Counts, tokens, cost and every error.`
             : "Every pipeline run, with what it cost and what went wrong."
         }
       />
@@ -125,6 +133,14 @@ export default async function RunsPage() {
           })}
         </ul>
       )}
+
+      <Pagination
+        page={runsPage.page}
+        totalPages={runsPage.totalPages}
+        total={runsPage.total}
+        from={runsPage.from}
+        to={runsPage.to}
+      />
     </div>
   );
 }
