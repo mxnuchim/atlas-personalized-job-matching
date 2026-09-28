@@ -1245,3 +1245,19 @@ priority by event time. Ingestion timestamps cluster by construction — they re
 schedule, not the world's — so any ranking built on one silently degrades to arbitrary
 as soon as work is batched. When a sort claims a meaning, check the column's
 cardinality: a near-constant sort key is a sort that does nothing.
+
+---
+
+## 2026-09-28 10:10 — The primary CTA is the user's action, not the tool's capability
+
+**Problem.** The match drawer led with "Draft this now" because drafting is what Atlas can
+*do*. But the user's actual next step for almost every role is to open the link and apply;
+the email draft is a niche case. The loudest button pointed at the product's cleverness
+instead of the user's job.
+
+**Fix.** Apply (the posting link) became the primary action everywhere a match is acted on,
+and drafting was gated to the one situation it fits — a posting that gives you an address.
+The cron was gated the same way, so it stopped spending on drafts nobody would send.
+
+**Rule.** Make the most visible control the thing the user came to do. A capability the
+product is proud of does not earn primacy; the user's actual next action does.

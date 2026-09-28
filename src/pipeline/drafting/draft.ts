@@ -89,6 +89,16 @@ export async function runDraft({
   const allMatches = await listMatchRows(profile.id);
   const targets = allMatches.filter((m) => queued.has(m.id));
 
+  // Draft only for roles you apply to by email — a real address in the posting. Almost
+  // every role applies through its link (an ATS form), where a drafted email has no
+  // recipient; drafting one anyway is wasted spend and clutter in the review queue.
+  const draftable = targets.filter((m) => m.contactEmail);
+  if (draftable.length === 0) {
+    return matchId
+      ? { ...empty(), skipped: "This role applies through its link — there's no address to email." }
+      : empty();
+  }
+
   // An email signed "the candidate" is worse than no email, so this refuses rather
   // than guessing a name out of the CV prose.
   if (!profile.name) {
@@ -106,7 +116,7 @@ export async function runDraft({
   const summary = empty();
   let totals = emptyUsageTotals();
 
-  const outcomes = await mapWithConcurrency(targets, LIMITS.maxConcurrency, async (match) => {
+  const outcomes = await mapWithConcurrency(draftable, LIMITS.maxConcurrency, async (match) => {
     try {
       return { ok: true as const, ...(await draftForMatch({ match, profile, system })) };
     } catch (error) {

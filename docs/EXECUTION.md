@@ -1751,3 +1751,32 @@ days to 1 day**. Same cost, six times fresher. 357 tests green; lint, typecheck 
 build clean.
 
 **Files.** `src/db/queries/matches.ts`
+
+---
+
+## 2026-09-28 10:10 — Apply is the action, not "draft this now"
+
+**Context.** The drawer's loudest button was "Draft this now", with the actual application
+link demoted to a quiet "Open original" text link. But almost every role applies through an
+ATS form (Ashby, Greenhouse, Lever) — the user's action is to open that link and apply, not
+to write an email. Drafting is only useful for the rare posting that gives you an address.
+
+**Action.**
+
+- **`MatchRow` gained `contactEmail` / `contactIsPersonal`**, extracted from the posting at
+  read time via `lib/contact` (the same way drafts already derive it) — the signal for
+  "this role can be applied to by email".
+- **Drawer CTA inverted** (`match-drawer.tsx`): **Apply** (opens the posting) is now the
+  primary button; **Draft email** appears only when `contactEmail` is present; "Not
+  interested" stays. A closed role shows a "View posting" link only.
+- **The cron only auto-drafts email-apply roles** (`draft.ts`): `runDraft` filters its
+  targets to those with a `contactEmail`. Link-apply strong matches are left to Apply — no
+  wasted LLM spend and no review-queue clutter for emails with no recipient. On-demand
+  drafting refuses a link-apply role with a legible message.
+
+**Verification.** In `/preview`, opened both drawer states: a link-apply role shows **Apply +
+Not interested** (no draft); an email-apply role shows **Apply + Draft email + Not interested**.
+357 tests green; lint, typecheck and build clean.
+
+**Files.** `src/db/queries/matches.ts`, `src/components/match-drawer.tsx`,
+`src/pipeline/drafting/draft.ts`, `docs/INTERFACE.md`

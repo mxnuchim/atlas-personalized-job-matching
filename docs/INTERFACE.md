@@ -390,7 +390,9 @@ Known inconsistencies. Fix when you're next in the file; don't add to them.
   either use or delete — don't half-adopt.
 - **The matches table has no `a`/`s`/`e` shortcuts — by design.** A match is not approved or
   skipped; that is the review queue, which now drives `a`/`s`/`e` (M6 phase 3). The table stays
-  navigation-only (`j`/`k`/`enter`/`/`), and the drawer's one action is "Open original".
+  navigation-only (`j`/`k`/`enter`/`/`). The drawer's primary action is **Apply** (open the
+  posting link); "Draft email" appears only when the posting exposes a real address, since
+  almost every role applies through an ATS form, not by email.
 - **Pipeline screen is still a static shell.** `outreach` has no queries (M4).
 - **Strength chips in the Cites block do not cap.** Five strengths become five rows on a
   phone. Today's card caps at four; this one deliberately does not, because a draft is

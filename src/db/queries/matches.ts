@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { isStale, relativeAge } from "@/lib/age";
 import { capPerCompany } from "@/lib/queue";
+import { extractContact } from "@/lib/contact";
 import { htmlToText } from "@/lib/html";
 import { MIN_FOR_RANK, TIER_SHARES, type FitTier } from "@/lib/scoring";
 
@@ -104,6 +105,14 @@ export type MatchRow = {
    * outreach for a role that no longer exists.
    */
   closed: boolean;
+  /**
+   * An address found in the posting, if any — the signal that this role can be applied
+   * to by email. Extracted at read time (never stored), so it always reflects the current
+   * description. Most postings have none: they apply through the link, and the UI shows
+   * "Apply" rather than offering a draft.
+   */
+  contactEmail: string | null;
+  contactIsPersonal: boolean;
   /** Plain text, capped. `descriptionTruncated` says whether anything was cut. */
   description: string;
   descriptionTruncated: boolean;
@@ -138,6 +147,7 @@ export async function listMatchRows(profileId: string, limit = 200): Promise<Mat
 function toMatchRow(m: Match, j: Job, now: Date): MatchRow {
   {
     const text = htmlToText(j.description ?? "");
+    const contact = extractContact(text);
     return {
       id: m.id,
       jobId: m.jobId,
@@ -160,6 +170,8 @@ function toMatchRow(m: Match, j: Job, now: Date): MatchRow {
       postedAgeLabel: relativeAge(j.postedAt, now),
       evergreen: isStale(j.postedAt, 180, now),
       closed: j.closedAt !== null,
+      contactEmail: contact?.email ?? null,
+      contactIsPersonal: contact?.personal ?? false,
       description: text.slice(0, MAX_DESCRIPTION_CHARS),
       descriptionTruncated: text.length > MAX_DESCRIPTION_CHARS,
     };

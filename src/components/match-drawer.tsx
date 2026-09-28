@@ -202,24 +202,16 @@ function DrawerBody({
       </div>
 
       <footer className="space-y-3 border-t px-6 py-4">
-        {/* A closed role gets no actions — offering to draft for a posting that is
-            gone is worse than offering nothing. */}
-        {!match.closed && <DrawerActions matchId={match.id} />}
+        <DrawerActions
+          matchId={match.id}
+          url={match.url}
+          contactEmail={match.contactEmail}
+          closed={match.closed}
+        />
 
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-muted-foreground text-xs">
-            Scored {match.scoredAtLabel} · {match.model}
-          </span>
-          <a
-            href={match.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary-ink focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
-          >
-            Open original
-            <ExternalLinkIcon className="size-3.5" />
-          </a>
-        </div>
+        <p className="text-muted-foreground text-xs">
+          Scored {match.scoredAtLabel} · {match.model}
+        </p>
       </footer>
     </>
   );
@@ -244,10 +236,23 @@ function Meter({ value, className }: { value: number; className?: string }) {
 /**
  * What you can do about a match you have just read.
  *
- * "Draft this now" ignores the tier gate on purpose: the scheduled run only drafts
- * `strong`, so a `possible` role you personally rate would otherwise never get one.
+ * Almost every role applies through its posting — an ATS form on Ashby, Greenhouse,
+ * Lever — so **Apply** (opening that link) is the primary action. A draft is only useful
+ * when the posting exposes a real address to write to, so "Draft email" appears only
+ * then; link-apply roles are never auto-drafted either (see `runDraft`). A closed role
+ * can still be read but neither applied to nor drafted for.
  */
-function DrawerActions({ matchId }: { matchId: string }) {
+function DrawerActions({
+  matchId,
+  url,
+  contactEmail,
+  closed,
+}: {
+  matchId: string;
+  url: string;
+  contactEmail: string | null;
+  closed: boolean;
+}) {
   const [pending, startTransition] = useTransition();
 
   function run(action: typeof draftMatchAction, working: string) {
@@ -260,22 +265,55 @@ function DrawerActions({ matchId }: { matchId: string }) {
     });
   }
 
+  if (closed) {
+    return (
+      <p className="text-muted-foreground flex items-center gap-2 text-sm">
+        <XCircleIcon className="size-4 shrink-0" />
+        This role has closed.
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary-ink focus-visible:ring-ring ml-auto inline-flex items-center gap-1.5 rounded-md font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
+        >
+          View posting
+          <ExternalLinkIcon className="size-3.5" />
+        </a>
+      </p>
+    );
+  }
+
   return (
-    <div className="flex flex-wrap gap-2">
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() => run(draftMatchAction, "Writing a draft…")}
-        className="bg-primary text-primary-foreground focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+    <div className="flex flex-wrap items-center gap-2">
+      {/* The application link is the action for almost every role — the loudest control. */}
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bg-primary text-primary-foreground focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:outline-none"
       >
-        <PenLineIcon className="size-4" />
-        Draft this now
-      </button>
+        <ExternalLinkIcon className="size-4" />
+        Apply
+      </a>
+
+      {/* Only when the posting gives you someone to email. */}
+      {contactEmail && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => run(draftMatchAction, "Writing a draft…")}
+          className="border-border bg-card text-foreground hover:bg-muted focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+        >
+          <PenLineIcon className="size-4" />
+          Draft email
+        </button>
+      )}
+
       <button
         type="button"
         disabled={pending}
         onClick={() => run(dismissMatchAction, "Closing…")}
-        className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+        className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
       >
         <XCircleIcon className="size-4" />
         Not interested
