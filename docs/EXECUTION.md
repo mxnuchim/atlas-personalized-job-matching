@@ -1864,3 +1864,25 @@ cheaper scoring model per task, reusing the calibration harness to compare it ag
 Backfill spend (gpt-5-mini now vs after picking the cheaper model) still open with the user.
 
 **Files.** `src/pipeline/scoring/calibrate.ts`
+
+---
+
+## 2026-09-28 14:57 — Scorer A/B: low reasoning holds, ~$0.0027/job
+
+**Context.** Deciding scoring effort before the Neon backfill (2 users, ~4,441 unscored). Reasoning
+is ~90% of the bill, so the cheapest lever that keeps the corpus on one model is lower reasoning,
+not a different vendor. Jev was rejected as the scorer (no reasoning → 91→59); this tests the same
+`gpt-5-mini` at low reasoning vs its stored default-reasoning scores.
+
+**Action.** Built `pipeline/scoring/ab.ts` (`scoring:ab`) — re-scores a spread of a profile's
+already-scored jobs at a given reasoning effort and reports rank correlation, error, tier agreement
+and cost. Ran 12 spread jobs for manuchim (first sample was top-cluster only and gave a misleading
+ρ; fixed to sample across the range).
+
+**Result.** Low tracks default: Spearman ρ **0.888**, Pearson 0.931, overall MAE **2.6**, tier
+agreement **9/12** (all boundary wobble). Per-dimension MAE small except **location_fit ~15** (the
+most reasoning-dependent dimension). Cost halves — output 2157→1115 tok/job, $0.0052→**$0.0027**.
+Projected backfill ~$11.8 both users / ~$5.9 one. Verdict: adopt low reasoning and push it so the
+daily cron matches the backfill; back one user fits the $10 credit, both slightly exceeds it.
+
+**Files.** `src/pipeline/scoring/ab.ts`, `package.json`
