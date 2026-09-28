@@ -1843,3 +1843,24 @@ card on file. Nothing is wired into the live pipeline; the scorer and calibratio
 run the moment credits are added, and only then does the split get wired and the backfill run.
 
 **Files.** `src/pipeline/scoring/{jev,calibrate}.ts`, `package.json`
+
+---
+
+## 2026-09-28 14:15 — Jev calibration blocked by upstream rate limits; verdict and routing direction
+
+**Context.** Paid credits added. Ran the calibration to decide Jev adoption before the backfill.
+
+**Action.** Paced the calibration (8s between calls, backoff to 50s) after bursts tripped the
+gateway rate limit.
+
+**Result.** Paid access works — Jev returns scores — but the upstream throttles this account to
+~1 call every few minutes ("high demand"), so calibration could not complete and a 2,032-job
+backfill is infeasible through Jev. The one job that scored diverged sharply from the LLM (91 vs
+58/59). **Verdict:** Jev is a System-1 (no-reasoning) model — a fit for crisp gates (relevance
+filter, dealbreaker booleans) but the wrong tool for the nuanced fit *score*, where the reasoning
+is the value. Not adopting it as the scorer; kept staged for the relevance gate later. Direction:
+route the LLM layer through the Vercel AI Gateway (key + credits already present) and pick a
+cheaper scoring model per task, reusing the calibration harness to compare it against gpt-5-mini.
+Backfill spend (gpt-5-mini now vs after picking the cheaper model) still open with the user.
+
+**Files.** `src/pipeline/scoring/calibrate.ts`

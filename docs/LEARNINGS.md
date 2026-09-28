@@ -1261,3 +1261,23 @@ The cron was gated the same way, so it stopped spending on drafts nobody would s
 
 **Rule.** Make the most visible control the thing the user came to do. A capability the
 product is proud of does not earn primacy; the user's actual next action does.
+
+---
+
+## 2026-09-28 14:15 — Match the model class to whether the task needs reasoning
+
+**Problem.** Built a full Jev (System-1) integration to cut scoring cost, then found it scored a
+"strong" job (LLM 91) at ~59 — and its upstream throttled calls to ~1 every few minutes.
+
+**Root cause.** Job-fit scoring is a nuanced, multi-factor judgment; the reasoning *is* the value.
+A System-1 model returns typed decisions by design **without** reasoning — excellent for crisp
+gates (routing, urgency, a boolean), wrong for a judgment that must weigh factors. Its cheapness
+comes from skipping exactly the step this task needs.
+
+**Fix.** Don't use Jev as the scorer; its fit is the cheap gates upstream of scoring. The real
+cost lever is task-appropriate routing (Gateway + a cheaper model where the rubric is tight), not
+a different model *class*.
+
+**Rule.** Before reaching for a cheaper/faster model, ask whether the task needs reasoning. If it
+does, a no-reasoning model isn't cheaper — it's a different, worse answer. Match the class to the
+task, then optimize within it.

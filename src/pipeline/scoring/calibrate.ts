@@ -59,10 +59,13 @@ function spearman(a: number[], b: number[]): number {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Jev's upstream rate-limits bursts, so hold a steady gap between calls. */
+const PACE_MS = 8_000;
+
 async function scoreWithRetry(
   profile: NonNullable<Awaited<ReturnType<typeof getCurrentProfile>>>,
   job: Parameters<typeof scoreJobWithJev>[1],
-  tries = 5,
+  tries = 6,
 ) {
   for (let attempt = 1; attempt <= tries; attempt++) {
     try {
@@ -71,8 +74,9 @@ async function scoreWithRetry(
       const message = error instanceof Error ? error.message : String(error);
       const transient = /rate.?limit|429|high demand|experiencing high/i.test(message);
       if (transient && attempt < tries) {
-        console.info(`  … Jev busy, retry ${attempt}/${tries - 1} after backoff`);
-        await delay(3000 * attempt);
+        const backoff = 10_000 * attempt;
+        console.info(`  … Jev busy, retry ${attempt}/${tries - 1} in ${backoff / 1000}s`);
+        await delay(backoff);
         continue;
       }
       throw error;
@@ -117,7 +121,10 @@ async function main() {
   );
   let inputTokens = 0;
 
+  let first = true;
   for (const row of rows) {
+    if (!first) await delay(PACE_MS);
+    first = false;
     const jev = await scoreWithRetry(profile, {
       title: row.title,
       company: row.company,
