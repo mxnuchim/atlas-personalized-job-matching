@@ -1725,3 +1725,29 @@ now-deprecated Node 20.
 **Result.** 357 tests green; lint, typecheck clean.
 
 **Files.** `src/pipeline/{run.ts,run.test.ts,cli.ts}`, `.github/workflows/pipeline.yml`
+
+---
+
+## 2026-09-28 07:20 — The scoring queue was not scoring the newest jobs
+
+**Context.** Asked whether a backfill would mostly score old jobs. It would not — the
+30-day ingest window means the whole corpus is last-month postings, and 57% of it is
+from the last week. But checking turned up a real fault.
+
+**The fault.** `getUnscoredJobs` ordered by `first_seen_at` — when *we fetched* a
+posting — and ingest fetches in batches. Locally 2,324 jobs share 83 distinct values;
+a first ingest gives every row the same instant. So the ordering claimed "newest first"
+and delivered an arbitrary slice. That matters precisely because scoring only reaches
+50 a day: the order decides what you ever see, and the first Neon run scored 50
+effectively at random rather than the 50 freshest roles.
+
+**Fix.** Order by `posted_at desc nulls last`, tie-breaking on `first_seen_at`. What
+the employer published survives batching; when we happened to pull it does not.
+Undated postings sort last — an unknown date is not evidence of freshness, and letting
+nulls win would hand the queue to the boards that omit it.
+
+**Result, measured.** The next 50 jobs to be scored drop from an average age of **6
+days to 1 day**. Same cost, six times fresher. 357 tests green; lint, typecheck and
+build clean.
+
+**Files.** `src/db/queries/matches.ts`

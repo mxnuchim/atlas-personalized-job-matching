@@ -1219,3 +1219,29 @@ the command that fixes it.
 of and check that, rather than reporting success by default and failure on exception.
 "Nothing went wrong" is the weakest possible definition of working, and it is the one a
 try/catch gives you for free — which is exactly why it is so often the one that ships.
+
+---
+
+## 2026-09-28 07:20 — Sorting by when you fetched it is not sorting by when it happened
+
+**Problem.** The scoring queue was documented and believed to be "newest first". It was
+returning an arbitrary slice.
+
+**Root cause.** It ordered by `first_seen_at`, an ingest artefact. Ingest runs in
+batches, so that column is near-constant: 2,324 rows share 83 distinct values, and on a
+first ingest every row gets the same instant. Ordering by a column with almost no
+distinct values is not ordering. The real signal — `posted_at`, what the employer
+published — was sitting unused in the same table.
+
+The failure was invisible because the query looked right and the data looked fine. It
+only surfaced when someone asked whether a backfill would score old jobs, which made me
+check what "newest" actually meant.
+
+**Fix.** Order by `posted_at desc nulls last`, tie-break on `first_seen_at`. Nulls last,
+because an unknown date is not evidence of freshness.
+
+**Rule.** Distinguish *event time* from *ingestion time*, and sort user-facing
+priority by event time. Ingestion timestamps cluster by construction — they record your
+schedule, not the world's — so any ranking built on one silently degrades to arbitrary
+as soon as work is batched. When a sort claims a meaning, check the column's
+cardinality: a near-constant sort key is a sort that does nothing.

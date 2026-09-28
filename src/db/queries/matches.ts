@@ -31,23 +31,34 @@ export async function listMatches(profileId: string): Promise<MatchWithJob[]> {
 
 /** Jobs with no match yet for this profile version — the scorer's work queue. */
 export async function getUnscoredJobs(profileId: string, limit: number): Promise<Job[]> {
-  return db
-    .select()
-    .from(jobs)
-    .where(
-      and(
-        // A closed posting is not worth a scoring call — the role is gone.
-        isNull(jobs.closedAt),
-        notExists(
-          db
-            .select({ one: sql`1` })
-            .from(matches)
-            .where(and(eq(matches.jobId, jobs.id), eq(matches.profileId, profileId))),
+  return (
+    db
+      .select()
+      .from(jobs)
+      .where(
+        and(
+          // A closed posting is not worth a scoring call — the role is gone.
+          isNull(jobs.closedAt),
+          notExists(
+            db
+              .select({ one: sql`1` })
+              .from(matches)
+              .where(and(eq(matches.jobId, jobs.id), eq(matches.profileId, profileId))),
+          ),
         ),
-      ),
-    )
-    .orderBy(desc(jobs.firstSeenAt))
-    .limit(limit);
+      )
+      // Freshest *role* first, not freshest fetch. `first_seen_at` is when we happened
+      // to pull the posting, and ingest pulls in batches — 2,300 jobs share 83 distinct
+      // values locally, and a first ingest gives every row the same instant. Sorting by
+      // it therefore claimed "newest first" while actually returning an arbitrary slice,
+      // which matters because scoring only reaches 50 a day: the order decides what you
+      // ever see. `posted_at` is what the employer said, so it survives batching.
+      //
+      // Undated postings sort last rather than first: an unknown date is not evidence of
+      // freshness, and letting nulls win would hand the queue to the boards that omit it.
+      .orderBy(sql`${jobs.postedAt} desc nulls last`, desc(jobs.firstSeenAt))
+      .limit(limit)
+  );
 }
 
 /**
