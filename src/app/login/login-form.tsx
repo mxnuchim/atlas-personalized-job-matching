@@ -7,6 +7,7 @@ import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { avatarFor } from "@/lib/avatars";
 
 import { login, type LoginState } from "./actions";
 
@@ -50,7 +51,7 @@ export function LoginForm({ users }: { users: PickerUser[] }) {
                 <Avatar
                   name={user.name}
                   email={user.email}
-                  image={user.image}
+                  image={user.image ?? avatarFor(user.email)}
                   size={64}
                   className="ring-border ring-2 transition-transform group-hover:scale-105 group-focus-visible:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
                 />
@@ -79,7 +80,12 @@ export function LoginForm({ users }: { users: PickerUser[] }) {
     <form action={formAction} className="space-y-4" noValidate>
       {picked ? (
         <div className="flex items-center gap-3 pb-1">
-          <Avatar name={picked.name} email={picked.email} image={picked.image} size={40} />
+          <Avatar
+            name={picked.name}
+            email={picked.email}
+            image={picked.image ?? avatarFor(picked.email)}
+            size={40}
+          />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{picked.name ?? picked.email}</p>
             <p className="text-muted-foreground truncate text-xs">{picked.email}</p>

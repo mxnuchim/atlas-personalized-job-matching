@@ -2098,3 +2098,20 @@ with the Apply-primary change).
 
 **Files.** `src/pipeline/drafting/{schema,draft}.ts`, `src/pipeline/drafting/schema.test.ts`,
 `src/components/review-queue.tsx`
+
+---
+
+## 2026-09-29 06:00 — Real avatars on the login picker
+
+**Context.** The account picker on `/login` showed initials tiles (MO / AA) for the two known
+users, while the sidebar showed their committed photos — because the picker rendered only the DB
+`users.image` column (null for both), never the `avatarFor(email)` map.
+
+**Action.** `login-form.tsx` now falls back to `avatarFor(user.email)` when `user.image` is null,
+for both the picker grid and the picked-account confirmation — same precedence the sidebar user
+menu uses (`user.image ?? avatarFor(email)`).
+
+**Result.** tsc, lint clean; 362 tests unaffected. Verified live on `/login` (public route): both
+photos render.
+
+**Files.** `src/app/login/login-form.tsx`
