@@ -35,6 +35,12 @@ export type DraftSummary = {
   costUsd: number | null;
   errors: RunError[];
   skipped?: string;
+  /**
+   * The draft just written, for the single-match on-demand path — so the drawer can show
+   * it inline and hand it to Gmail without a round trip to the review screen. Undefined in
+   * the bulk scheduled run, which produces many and surfaces none.
+   */
+  draft?: { subject: string; body: string };
 };
 
 function empty(): DraftSummary {
@@ -135,6 +141,8 @@ export async function runDraft({
       summary.drafted += 1;
       totals = addUsage(totals, outcome.usage);
       if (outcome.ungrounded) summary.errors.push(outcome.ungrounded);
+      // Single-match on-demand: hand the content back so the drawer shows it at once.
+      if (matchId) summary.draft = { subject: outcome.subject, body: outcome.body };
     } else {
       summary.failed += 1;
       summary.errors.push({
@@ -199,6 +207,8 @@ async function draftForMatch(params: {
   const grounding = draftGrounding(row);
   return {
     usage,
+    subject: row.subject,
+    body: row.body,
     ungrounded: grounding.grounded
       ? undefined
       : ({

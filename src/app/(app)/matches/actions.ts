@@ -19,7 +19,9 @@ import { runDraft } from "@/pipeline/drafting/draft";
 const logger = log("matches");
 const matchSchema = z.object({ matchId: z.uuid() });
 
-export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
+export type ActionResult =
+  | { ok: true; message?: string; draft?: { subject: string; body: string } }
+  | { ok: false; error: string };
 
 /** Draft this role now, regardless of tier. */
 export async function draftMatchAction(input: unknown): Promise<ActionResult> {
@@ -48,7 +50,9 @@ export async function draftMatchAction(input: unknown): Promise<ActionResult> {
   logger.info({ matchId: parsed.data.matchId }, "drafted on demand");
   revalidatePath("/review");
   revalidatePath("/pipeline");
-  return { ok: true, message: "Draft ready in Review." };
+  // Hand the content back so the drawer can show it inline and open Gmail — the draft is
+  // also saved to Review, but the point is you see it now, not after navigating away.
+  return { ok: true, message: "Draft ready.", draft: summary.draft };
 }
 
 /**

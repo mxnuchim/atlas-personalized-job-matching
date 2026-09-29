@@ -1,15 +1,25 @@
 "use client";
 
-import { useTransition } from "react";
-import { AlertTriangleIcon, ExternalLinkIcon, PenLineIcon, XCircleIcon, XIcon } from "lucide-react";
+import { useState, useTransition } from "react";
+import {
+  AlertTriangleIcon,
+  ArrowLeftIcon,
+  ExternalLinkIcon,
+  MailIcon,
+  PenLineIcon,
+  XCircleIcon,
+  XIcon,
+} from "lucide-react";
 import { Dialog } from "radix-ui";
 import { toast } from "sonner";
 
 import { dismissMatchAction, draftMatchAction } from "@/app/(app)/matches/actions";
 
+import { CopyButton } from "@/components/copy-button";
 import { FitGauge } from "@/components/fit-gauge";
 import { TierChip } from "@/components/tier-chip";
 import type { MatchRow } from "@/db/queries/matches";
+import { gmailComposeUrl, mailtoUrl } from "@/lib/gmail";
 import { cn } from "@/lib/utils";
 
 /**
@@ -61,7 +71,11 @@ export function MatchDrawer({
             "duration-200 motion-reduce:animate-none motion-reduce:duration-0",
           )}
         >
-          {match ? <DrawerBody match={match} strengthLabels={strengthLabels} /> : null}
+          {/* Keyed by id so a different match remounts the body — resetting any inline
+              draft state to that role, never carrying the previous one over. */}
+          {match ? (
+            <DrawerBody key={match.id} match={match} strengthLabels={strengthLabels} />
+          ) : null}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -77,6 +91,10 @@ function DrawerBody({
 }) {
   const rewarded = [...match.strengthMatches].sort((a, b) => b.rewarded - a.rewarded);
   const location = match.location ?? (match.remote ? "Remote" : "Location not stated");
+
+  // The draft the drawer just generated, shown inline. Reset when a different match opens
+  // because `MatchDrawer` keys the body on the match, so this mounts fresh each time.
+  const [draft, setDraft] = useState<{ subject: string; body: string } | null>(null);
 
   return (
     <>
@@ -122,11 +140,20 @@ function DrawerBody({
         </Dialog.Close>
       </header>
 
-      <div className="flex-1 space-y-7 overflow-y-auto px-6 py-6">
-        <section>
-          <SectionLabel>Why you</SectionLabel>
-          <p className="mt-2 text-[0.9375rem] leading-relaxed text-pretty">{match.whyYou}</p>
-        </section>
+      {draft ? (
+        <DraftReady
+          match={match}
+          subject={draft.subject}
+          body={draft.body}
+          onBack={() => setDraft(null)}
+        />
+      ) : (
+        <>
+          <div className="flex-1 space-y-7 overflow-y-auto px-6 py-6">
+            <section>
+              <SectionLabel>Why you</SectionLabel>
+              <p className="mt-2 text-[0.9375rem] leading-relaxed text-pretty">{match.whyYou}</p>
+            </section>
 
         {rewarded.length > 0 && (
           <section>
@@ -198,19 +225,117 @@ function DrawerBody({
               Shortened — open the original for the full posting.
             </p>
           )}
-        </section>
+            </section>
+          </div>
+
+          <footer className="space-y-3 border-t px-6 py-4">
+            <DrawerActions
+              matchId={match.id}
+              url={match.url}
+              contactEmail={match.contactEmail}
+              closed={match.closed}
+              onDrafted={setDraft}
+            />
+
+            <p className="text-muted-foreground text-xs">
+              Scored {match.scoredAtLabel} · {match.model}
+            </p>
+          </footer>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * The draft, shown the moment it is generated — subject, who it goes to, and the body —
+ * with one button to open it in Gmail ready to send. It is also saved to Review; this is
+ * so you never have to leave the match to see what Atlas wrote.
+ */
+function DraftReady({
+  match,
+  subject,
+  body,
+  onBack,
+}: {
+  match: MatchRow;
+  subject: string;
+  body: string;
+  onBack: () => void;
+}) {
+  const to = match.contactEmail;
+  const gmail = gmailComposeUrl({ to, subject, body });
+
+  return (
+    <>
+      <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
+        <div className="flex items-center gap-2">
+          <span className="bg-tier-strong/15 text-tier-strong inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium">
+            <MailIcon className="size-3.5" />
+            Draft ready
+          </span>
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring ml-auto inline-flex items-center gap-1.5 rounded-md text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <ArrowLeftIcon className="size-3.5" />
+            Back to match
+          </button>
+        </div>
+
+        <div>
+          <SectionLabel>To</SectionLabel>
+          {to ? (
+            <p className="mt-1 text-sm font-medium break-all">{to}</p>
+          ) : (
+            <p className="text-muted-foreground mt-1 text-sm">
+              No address in the posting — apply through the link instead.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <SectionLabel>Subject</SectionLabel>
+          <p className="mt-1 text-sm font-medium text-pretty">{subject}</p>
+        </div>
+
+        <div>
+          <SectionLabel>Body</SectionLabel>
+          <p className="mt-1 text-[0.9375rem] leading-relaxed whitespace-pre-line">{body}</p>
+        </div>
       </div>
 
       <footer className="space-y-3 border-t px-6 py-4">
-        <DrawerActions
-          matchId={match.id}
-          url={match.url}
-          contactEmail={match.contactEmail}
-          closed={match.closed}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Primary: open Gmail compose, pre-filled. Atlas never sends — you read it and
+              hit send yourself. */}
+          <a
+            href={gmail}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-primary text-primary-foreground focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <MailIcon className="size-4" />
+            Open in Gmail
+          </a>
+
+          <CopyButton value={`${subject}\n\n${body}`} label="Copy email" copiedLabel="Copied" />
+
+          <a
+            href="/review"
+            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring ml-auto inline-flex items-center gap-1.5 self-center rounded text-xs focus-visible:ring-2 focus-visible:outline-none"
+          >
+            Edit in Review
+            <ExternalLinkIcon className="size-3" />
+          </a>
+        </div>
 
         <p className="text-muted-foreground text-xs">
-          Scored {match.scoredAtLabel} · {match.model}
+          Saved to Review · or{" "}
+          <a href={mailtoUrl({ to, subject, body })} className="hover:text-foreground underline">
+            use your default mail app
+          </a>
         </p>
       </footer>
     </>
@@ -247,21 +372,40 @@ function DrawerActions({
   url,
   contactEmail,
   closed,
+  onDrafted,
 }: {
   matchId: string;
   url: string;
   contactEmail: string | null;
   closed: boolean;
+  /** Hand a freshly generated draft up so the drawer can show it inline. */
+  onDrafted: (draft: { subject: string; body: string }) => void;
 }) {
   const [pending, startTransition] = useTransition();
 
-  function run(action: typeof draftMatchAction, working: string) {
+  function run(action: typeof dismissMatchAction, working: string) {
     startTransition(async () => {
       const id = toast.loading(working);
       const result = await action({ matchId });
       toast.dismiss(id);
       if (result.ok) toast.success(result.message ?? "Done.");
       else toast.error(result.error);
+    });
+  }
+
+  function draftNow() {
+    startTransition(async () => {
+      const id = toast.loading("Writing a draft…");
+      const result = await draftMatchAction({ matchId });
+      toast.dismiss(id);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      // Show it inline. `draft` is populated on the single-match path; if it's ever
+      // missing, fall back to the toast that points at Review rather than swallowing it.
+      if (result.draft) onDrafted(result.draft);
+      else toast.success(result.message ?? "Draft ready in Review.");
     });
   }
 
@@ -301,7 +445,7 @@ function DrawerActions({
         <button
           type="button"
           disabled={pending}
-          onClick={() => run(draftMatchAction, "Writing a draft…")}
+          onClick={draftNow}
           className="border-border bg-card text-foreground hover:bg-muted focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
         >
           <PenLineIcon className="size-4" />

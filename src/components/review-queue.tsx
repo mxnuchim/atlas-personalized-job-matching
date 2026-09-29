@@ -16,6 +16,7 @@ import { FitGauge } from "@/components/fit-gauge";
 import { TierChip } from "@/components/tier-chip";
 import { Button } from "@/components/ui/button";
 import type { DraftRow } from "@/db/queries/drafts";
+import { gmailComposeUrl } from "@/lib/gmail";
 import { SPRING, TRANSITION } from "@/lib/motion";
 
 /**
@@ -229,6 +230,8 @@ function DraftCard({
 
   const edited = draft.editedBody !== null;
   const wordCount = body.trim().split(/\s+/).filter(Boolean).length;
+  // A manually-set recipient wins; otherwise the address the posting carried.
+  const recipient = draft.recipient ?? draft.contactEmail;
 
   // Focus the textarea whenever editing opens — whether from the button or `e`.
   useEffect(() => {
@@ -382,11 +385,26 @@ function DraftCard({
         )}
 
         <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-          {/* The primary action: the whole point is that this is ready to paste. */}
+          {/* The fastest path to sent: Gmail compose, pre-filled, when there's an address. */}
+          {recipient && (
+            <Button asChild size="sm">
+              <a
+                href={gmailComposeUrl({ to: recipient, subject: draft.subject, body })}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <MailIcon className="size-4" />
+                Open in Gmail
+              </a>
+            </Button>
+          )}
+
+          {/* Also ready to paste, for anyone not on Gmail. */}
           <CopyButton
             value={`${draft.subject}\n\n${body}`}
             label="Copy email"
             copiedLabel="Copied"
+            variant={recipient ? "ghost" : "default"}
           />
 
           <Button size="sm" variant="secondary" onClick={onApprove}>

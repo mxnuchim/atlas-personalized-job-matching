@@ -1984,3 +1984,37 @@ Manuchim: **2,309 scored / 347 strong** (819 possible, 1,143 stretch). Alabi fin
 idempotent). Confirmed `runScore` calls `recalibrateTiers` on completion (`scoring/score.ts:130`):
 Alabi's mid-run 25-strong rank-rebalanced to 349 exactly as expected, no fix needed. The two
 distributions now match, which is the reassuring sign that rank-based tiering is population-stable.
+
+---
+
+## 2026-09-29 03:20 — Draft email: show it inline + one-click Gmail
+
+**Context.** "Draft email" worked but felt broken: clicking it showed a loading toast, then
+"Draft ready in Review", and the draft was never seen — it silently went to `/review`, and the
+only mail handoff was a buried `mailto:` on the address that carried the subject but not the body.
+The ask: see the draft immediately, then one button to Gmail with recipient + subject + body filled.
+
+**Action.**
+
+- **`lib/gmail.ts`** (new): `gmailComposeUrl({to,subject,body})` → Gmail web compose URL
+  (`view=cm&fs=1`, `su`/`body` params, empty fields omitted); `mailtoUrl(...)` fallback. Pure,
+  unit-tested (`gmail.test.ts`, 5 cases incl. newline/round-trip).
+- **The draft is now returned to the caller.** `runDraft` surfaces the created `{subject,body}`
+  on the single-match on-demand path (`draft.ts`); `draftMatchAction` returns it (`ActionResult`
+  gained an optional `draft`).
+- **Drawer shows it inline** (`match-drawer.tsx`): on a successful draft, `DrawerActions` hands the
+  content up and the body swaps to a **DraftReady** panel — To / Subject / Body, with **Open in
+  Gmail** (primary), Copy email, "Edit in Review", and a `mailto:` fallback. Body is keyed on the
+  match id so a different match never shows the previous draft. Falls back to the old toast if the
+  content is ever missing.
+- **Review card** (`review-queue.tsx`): added **Open in Gmail** as the primary action when there's
+  a recipient (`draft.recipient ?? contactEmail`), Copy email demoted to ghost; no address → no
+  button, Copy stays default.
+
+**Result.** tsc, lint clean; **362 tests** (357 + 5 new). Verified in preview: Review card renders
+"Open in Gmail" with the correctly-encoded prefilled URL (to+su+body), the second card (no address)
+correctly omits it; the drawer opens intact and "Draft email" shows only for email-apply roles. The
+draft was never actually broken — it saved fine; the fix is making it visible and one tap from sent.
+
+**Files.** `src/lib/gmail.ts`, `src/lib/gmail.test.ts`, `src/components/match-drawer.tsx`,
+`src/components/review-queue.tsx`, `src/pipeline/drafting/draft.ts`, `src/app/(app)/matches/actions.ts`

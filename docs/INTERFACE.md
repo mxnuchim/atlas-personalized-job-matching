@@ -400,6 +400,22 @@ sliced on the client. The rule of thumb: if the corpus can reach the hundreds, i
 - Applied to Matches, Jobs and Runs. Matches sorts have a stable tiebreak (`overall`, then
   `scoredAt`) so a row never jumps pages between requests.
 
+## 10c. Drafts: seen at once, sent through Gmail
+
+Atlas never sends — it writes a grounded draft and hands it off. Two rules make that feel
+finished rather than half-done:
+
+- **A generated draft is shown where it was asked for.** Drafting from the match drawer swaps
+  the drawer body to a **DraftReady** panel (To / Subject / Body) immediately — the action
+  returns the content, it isn't only written to `/review` and announced by a toast. An action
+  that hides its own result reads as broken even when it worked.
+- **The primary handoff is Gmail compose, pre-filled** (`lib/gmail.ts` → `view=cm&fs=1`,
+  `su`/`body`), opened in a new tab against whatever account the browser is signed into. It
+  fills recipient, subject and body; the person reads and hits send. `mailto:` is the fallback,
+  never the headline. Both the drawer and the review card carry the button; it only appears when
+  there's an address to write to (`recipient ?? contactEmail`) — a link-apply role shows Apply
+  instead. Copy email stays for anyone off Gmail.
+
 ## 11. Open items
 
 Known inconsistencies. Fix when you're next in the file; don't add to them.
