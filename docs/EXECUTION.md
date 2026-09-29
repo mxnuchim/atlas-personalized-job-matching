@@ -2051,3 +2051,22 @@ shows only the centered mark with the edge toggle; mobile drawer matches. New de
 
 **Files.** `src/app/globals.css`, `src/components/{app-shell,logo,profile-importer}.tsx`,
 `src/app/(app)/matches/actions.ts`, `src/db/queries/drafts.ts`, `package.json`
+
+---
+
+## 2026-09-29 04:46 — "I applied" in the match drawer
+
+**Context.** Applied / Not interested lived only on the Today daily-queue rows. Oliver wanted to
+act on a match from the drawer (the right-side panel he calls the sidebar) too — it already had
+"Not interested" but not "I applied".
+
+**Action.** Added an **I applied** button to `DrawerActions` (`match-drawer.tsx`), calling the
+existing `markAppliedAction` via the same `run` helper as dismiss. Green check (`text-tier-strong-ink`),
+matching the Today queue's affordance. Works on any open match, drafted or not: `openOwnedOutreach`
+opens the outreach row at `drafted` if none exists, then the action moves it to `sent`. Footer is now
+Apply · Draft email · I applied · Not interested (`flex-wrap`, so it wraps on the mobile drawer).
+
+**Result.** tsc, lint clean; 362 tests green. Verified in preview (desktop dark): all four actions
+render in the drawer footer.
+
+**Files.** `src/components/match-drawer.tsx`

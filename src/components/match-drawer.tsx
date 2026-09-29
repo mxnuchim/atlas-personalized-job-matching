@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import {
   AlertTriangleIcon,
   ArrowLeftIcon,
+  CheckIcon,
   ExternalLinkIcon,
   MailIcon,
   PenLineIcon,
@@ -13,7 +14,11 @@ import {
 import { Dialog } from "radix-ui";
 import { toast } from "sonner";
 
-import { dismissMatchAction, draftMatchAction } from "@/app/(app)/matches/actions";
+import {
+  dismissMatchAction,
+  draftMatchAction,
+  markAppliedAction,
+} from "@/app/(app)/matches/actions";
 
 import { CopyButton } from "@/components/copy-button";
 import { FitGauge } from "@/components/fit-gauge";
@@ -452,6 +457,18 @@ function DrawerActions({
           Draft email
         </button>
       )}
+
+      {/* Track that you applied — works whether or not a draft exists, since it opens
+          the outreach row if needed (same as the Today queue). */}
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => run(markAppliedAction, "Tracking…")}
+        className="border-border bg-card text-tier-strong-ink hover:bg-muted focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+      >
+        <CheckIcon className="size-4" />
+        I applied
+      </button>
 
       <button
         type="button"
