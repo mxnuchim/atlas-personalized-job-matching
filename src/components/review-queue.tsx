@@ -433,11 +433,14 @@ function DraftCard({
 }
 
 /**
- * The contact, when the posting carried one. Most do not — they route through a form —
- * and saying so plainly is more useful than an empty field that looks broken.
+ * The contact this draft goes to. Prefer the recipient stored when the draft was written
+ * over what the posting reads *now* — the posting can change, but the draft was addressed
+ * to someone, and a card that says "no address" beside a written email is a lie. The
+ * "no address" fallback is only for the rare legacy draft that never captured one.
  */
 function Contact({ draft }: { draft: DraftRow }) {
-  if (!draft.contactEmail) {
+  const address = draft.recipient ?? draft.contactEmail;
+  if (!address) {
     return (
       <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
         <MailIcon className="size-3.5 shrink-0" />
@@ -451,17 +454,17 @@ function Contact({ draft }: { draft: DraftRow }) {
       <p className="flex min-w-0 items-center gap-1.5 text-sm">
         <MailIcon className="text-muted-foreground size-3.5 shrink-0" />
         <a
-          href={`mailto:${draft.contactEmail}?subject=${encodeURIComponent(draft.subject)}`}
+          href={`mailto:${address}?subject=${encodeURIComponent(draft.subject)}`}
           className="focus-visible:ring-ring truncate rounded font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
         >
-          {draft.contactEmail}
+          {address}
         </a>
-        {!draft.contactIsPersonal && (
+        {draft.contactEmail && !draft.contactIsPersonal && (
           <span className="text-muted-foreground shrink-0 text-xs">· team inbox</span>
         )}
       </p>
       <CopyButton
-        value={draft.contactEmail}
+        value={address}
         label="Copy address"
         variant="ghost"
         className="h-7 px-2 text-xs"

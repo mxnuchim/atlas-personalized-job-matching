@@ -196,6 +196,10 @@ async function draftForMatch(params: {
     output: data,
     validEvidenceIds: new Set(evidenceOptions.map((e) => e.id)),
     validStrengthKeys: new Set(strengthKeys),
+    // The draft only reaches here because the match had an address (the `draftable`
+    // filter). Persist it so the review queue never has to re-derive — and never
+    // disagrees with the draft's own existence.
+    recipient: match.contactEmail,
   });
 
   await insertDraft(row);

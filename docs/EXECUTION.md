@@ -2070,3 +2070,31 @@ Apply · Draft email · I applied · Not interested (`flex-wrap`, so it wraps on
 render in the drawer footer.
 
 **Files.** `src/components/match-drawer.tsx`
+
+---
+
+## 2026-09-29 05:16 — Drafts stop contradicting themselves ("no address" on a written email)
+
+**Context.** Oliver saw drafts in Review with "No address in the posting — apply through the link."
+A draft *is* an email, so this is a lie. Root cause (confirmed against Neon): the recipient was
+never stored — `draftToRow` set `recipient: null` and both draft-time (the `draftable` filter) and
+read-time (`listDrafts`) re-derived the address live via `extractContact` on the *current*
+description. 8 of 10 drafts had no live address and 0 had a stored recipient — legacy drafts from
+before drafting was made email-only (M4 auto-drafted every strong match; the email-only gate came
+with the Apply-primary change).
+
+**Action.**
+
+- **Persist the recipient at creation.** `draftToRow` now takes and stores `recipient`; `runDraft`
+  passes `match.contactEmail` (the draft only reaches there because the match had an address). A
+  draft can no longer disagree with its own existence when a posting later changes.
+- **Review card trusts the stored recipient.** `Contact` uses `draft.recipient ?? draft.contactEmail`;
+  "no address" is now only the rare legacy case. (The Gmail button already used this precedence.)
+- **Cleaned the 8 legacy addressless pending drafts** — marked `skipped` (Oliver's call; non-destructive)
+  via a one-off scoped to `status='pending'` with no derivable address. Review now holds the 2 real
+  email drafts.
+
+**Result.** tsc, lint clean; 362 tests (updated `schema.test.ts` to assert the recipient is stored).
+
+**Files.** `src/pipeline/drafting/{schema,draft}.ts`, `src/pipeline/drafting/schema.test.ts`,
+`src/components/review-queue.tsx`

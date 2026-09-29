@@ -71,13 +71,15 @@ describe("draftToRow", () => {
   const valid = {
     validEvidenceIds: new Set(["a8c730f3-9067-451d-ab0b-cfe0d215e7ff"]),
     validStrengthKeys: new Set(["ai-systems"]),
+    recipient: "maria.chen@acme.com" as string | null,
   };
 
-  it("stores a grounded draft as pending with no recipient", () => {
+  it("stores a grounded draft as pending with the recipient it was written for", () => {
     const row = draftToRow({ matchId: "m1", output, ...valid });
     expect(row.status).toBe("pending");
-    // M4 decides where an address comes from; inventing one violates §11.
-    expect(row.recipient).toBeNull();
+    // The address is persisted, not re-derived: a draft only exists because there was
+    // one, so the review queue must not later disagree by re-reading the posting.
+    expect(row.recipient).toBe("maria.chen@acme.com");
     expect(row.evidenceId).toBe("a8c730f3-9067-451d-ab0b-cfe0d215e7ff");
     expect(row.strengthKeys).toEqual(["ai-systems"]);
   });

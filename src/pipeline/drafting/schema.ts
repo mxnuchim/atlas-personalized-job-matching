@@ -90,16 +90,22 @@ export function draftToRow(params: {
   output: DraftOutput;
   validEvidenceIds: Set<string>;
   validStrengthKeys: Set<string>;
+  /**
+   * The address this draft was written for — the one extracted from the posting when it
+   * was drafted. Stored, not re-derived at read time: a draft only exists because there
+   * was an address, so persisting it keeps the draft from ever contradicting itself once
+   * the posting's description changes. Null only for a draft with no address (which the
+   * current pipeline no longer produces).
+   */
+  recipient: string | null;
 }): NewDraft {
-  const { matchId, output, validEvidenceIds, validStrengthKeys } = params;
+  const { matchId, output, validEvidenceIds, validStrengthKeys, recipient } = params;
 
   return {
     matchId,
     subject: stripIdentifiers(output.subject),
     body: stripIdentifiers(output.body),
-    // Null until M4 decides where addresses come from; the review queue surfaces that
-    // as a blocked guardrail rather than inventing one (PRD §11: verify each recipient).
-    recipient: null,
+    recipient,
     evidenceId: validEvidenceIds.has(output.evidence_id) ? output.evidence_id : null,
     strengthKeys: output.strength_keys.filter((k) => validStrengthKeys.has(k)),
     status: "pending",
