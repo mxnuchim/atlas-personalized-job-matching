@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { getOwnedDraftByMatch } from "@/db/queries/drafts";
 import { openOwnedOutreach, ownsMatch, setOutreachStatus } from "@/db/queries/outreach";
 import { log } from "@/lib/logger";
 import { actingProfileId, requireSession } from "@/lib/session";
@@ -37,6 +38,18 @@ export async function draftMatchAction(input: unknown): Promise<ActionResult> {
   // the reason legible, rather than an empty result that reads like a model failure.
   if (!(await ownsMatch(parsed.data.matchId, acting.profileId))) {
     return { ok: false, error: "That match no longer exists." };
+  }
+
+  // A match can only have one draft. If it already has one — from a prior click or the
+  // scheduled run — show that rather than refusing, which is what "already has a draft"
+  // used to do. Re-clicking should surface the draft, not a dead end.
+  const existing = await getOwnedDraftByMatch(parsed.data.matchId, acting.profileId);
+  if (existing) {
+    return {
+      ok: true,
+      message: "Here's your draft.",
+      draft: { subject: existing.subject, body: existing.editedBody ?? existing.body },
+    };
   }
 
   const summary = await runDraft({ userId: session.user.id, matchId: parsed.data.matchId });

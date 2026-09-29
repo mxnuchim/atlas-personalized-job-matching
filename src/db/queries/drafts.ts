@@ -245,3 +245,23 @@ export async function getOwnedDraft(id: string, profileId: string): Promise<Draf
     .limit(1);
   return row?.draft ?? null;
 }
+
+/**
+ * The draft for a match, only if it belongs to this profile.
+ *
+ * The drawer drafts on demand and a match can only ever have one draft, so re-clicking
+ * "Draft email" should surface the one already written rather than refuse — this is how
+ * it finds it. Ownership is enforced by the join, same as `getOwnedDraft`.
+ */
+export async function getOwnedDraftByMatch(
+  matchId: string,
+  profileId: string,
+): Promise<Draft | null> {
+  const [row] = await db
+    .select({ draft: drafts })
+    .from(drafts)
+    .innerJoin(matches, eq(drafts.matchId, matches.id))
+    .where(and(eq(drafts.matchId, matchId), eq(matches.profileId, profileId)))
+    .limit(1);
+  return row?.draft ?? null;
+}
