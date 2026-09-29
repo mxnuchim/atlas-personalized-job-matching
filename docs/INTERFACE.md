@@ -25,14 +25,18 @@ Defined as CSS variables in `globals.css` and exposed to Tailwind via `@theme in
 Dark mode is class-based (`.dark`, `next-themes`, `attribute="class"`), default light,
 system detection off.
 
+Dark is **midnight navy**, not slate-grey: one blue hue (~226°), surfaces stepping up in
+lightness on that hue so the theme reads as a single considered midnight rather than grey
+chrome. (The earlier `#12141a`/`#1a1d26` slate was replaced on 2026-09-29.)
+
 | Role | Light | Dark |
 |---|---|---|
-| paper / `--background` | `#f5f6f8` | `#12141a` |
-| surface / `--card` | `#ffffff` | `#1a1d26` |
-| raised / `--popover` | `#ffffff` | `#222634` |
-| ink / `--foreground` | `#16181d` | `#e7e9ee` |
-| muted / `--muted-foreground` | `#5a6472` | `#8a93a6` |
-| hairline / `--border` | `#e3e6eb` | `#2a2f3c` |
+| paper / `--background` | `#f5f6f8` | `#0a0f1e` |
+| surface / `--card` | `#ffffff` | `#111629` |
+| raised / `--popover` | `#ffffff` | `#151b31` |
+| ink / `--foreground` | `#16181d` | `#e8eaf1` |
+| muted / `--muted-foreground` | `#5a6472` | `#99a3ba` |
+| hairline / `--border` | `#e3e6eb` | `#232c49` |
 | accent / `--primary` | `#4c5bd4` | `#4c5bd4` |
 | `--destructive` | `#c6453b` | `#e06a60` |
 
@@ -58,7 +62,7 @@ display type, which AA judges at 3:1, and the number should match the arc it sit
 |---|---|---|---|
 | `--tier-strong` | `#2e9e6b` | `#35b57b` | overall ≥ 85 |
 | `--tier-possible` | `#b77d27` | `#e0a64b` | 65–84 |
-| `--tier-stretch` | `#6b7280` | `#8a93a6` | < 65 |
+| `--tier-stretch` | `#6b7280` | `#99a3ba` | < 65 |
 
 Thresholds are owned by `src/lib/scoring.ts` (`fitTier`, `TIER_LABELS`, `TIER_THRESHOLDS`).
 That module is deliberately free of `server-only` so both the pipeline and client
@@ -415,6 +419,21 @@ finished rather than half-done:
   never the headline. Both the drawer and the review card carry the button; it only appears when
   there's an address to write to (`recipient ?? contactEmail`) — a link-apply role shows Apply
   instead. Copy email stays for anyone off Gmail.
+
+## 10d. Iconography
+
+Two icon sets, by region:
+
+- **Sidebar / app shell → `iconsax-reactjs`.** Chosen for its variants: nav rows draw
+  `Linear` (outline) when inactive and `Bold` (solid) when active, so the state is in the glyph,
+  not only the pill. Icons default to `currentColor` and accept `className`, so they theme and
+  size like any other. Tree-shakeable (`sideEffects: false`), so only the imported glyphs ship.
+- **Content (drawer, cards, pages) → `lucide-react`,** as before. The two sets don't sit next to
+  each other, so the split reads as intentional. Extending iconsax into the content areas is a
+  fine follow-up, not a requirement.
+- **No sparkle, ever.** The brand mark (`components/logo.tsx`) is a two-summit range — the Atlas
+  mountains — not a star. A four-point star / sparkle / wand glyph is banned across the app; if a
+  "smart"/"AI" affordance needs a mark, use a document, wand-free.
 
 ## 11. Open items
 

@@ -1,6 +1,10 @@
 import { cn } from "@/lib/utils";
 
-/** Atlas mark — a four-point signal star. Uses currentColor so it inherits intent. */
+/**
+ * Atlas mark — a two-summit range, for the mountains the product is named after. A solid
+ * silhouette in `currentColor`, so it inherits intent (indigo in the brand, muted in the
+ * footer). Deliberately not a star or sparkle.
+ */
 export function Logo({ className }: { className?: string }) {
   return (
     <svg
@@ -11,7 +15,7 @@ export function Logo({ className }: { className?: string }) {
       role="img"
     >
       <path
-        d="M12 1.5 14.4 9.6 22.5 12 14.4 14.4 12 22.5 9.6 14.4 1.5 12 9.6 9.6Z"
+        d="M2.6 19.2 8.3 7.4a1 1 0 0 1 1.77-.05l3.13 5.3 1.6-2.62a1 1 0 0 1 1.72.02l4.88 9.15a.6.6 0 0 1-.53.88H3.14a.6.6 0 0 1-.54-.86Z"
         fill="currentColor"
       />
     </svg>

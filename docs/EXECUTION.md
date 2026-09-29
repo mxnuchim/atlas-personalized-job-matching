@@ -2018,3 +2018,36 @@ draft was never actually broken — it saved fine; the fix is making it visible 
 
 **Files.** `src/lib/gmail.ts`, `src/lib/gmail.test.ts`, `src/components/match-drawer.tsx`,
 `src/components/review-queue.tsx`, `src/pipeline/drafting/draft.ts`, `src/app/(app)/matches/actions.ts`
+
+---
+
+## 2026-09-29 03:45 — Midnight theme, iconsax icons, no more sparkle
+
+**Context.** Feedback on the shell: the dark theme's slate-grey read as muted and cheap; the
+collapsed rail's logo fought the collapse toggle for 68px; the lucide nav glyphs weren't the bar;
+and the sparkle mark (logo + profile importer) was disliked. Also, re-clicking "Draft email" on an
+already-drafted match returned "already has a draft" and dead-ended instead of showing the draft.
+
+**Action.**
+
+- **Dark theme → midnight navy** (`globals.css` `.dark`): one blue hue (~226°), surfaces stepping
+  `#0a0f1e` bg → `#111629` card → `#151b31` popover, navy borders `#232c49`. Deliberately blue, not
+  the old slate-grey. All 52 contrast checks still pass (darker surfaces only help light-on-dark).
+- **Icons → iconsax** (`iconsax-reactjs`, tree-shakeable, `currentColor` default): the sidebar nav
+  now draws `Linear` (outline) when inactive and `Bold` (solid) when active, so state lives in the
+  glyph. Mapping: Today→Category, Jobs→Briefcase, Matches→Discover, Review→DirectInbox,
+  Pipeline→Routing2, Sources→Global, Runs→Activity, Profile→Profile, Settings→Setting2.
+- **Sparkle gone.** New `Logo` is a two-summit range (Atlas mountains), no star/dot. The profile
+  importer's `SparklesIcon` → iconsax `DocumentText` (Bulk). No sparkle/star/wand left in `src/`.
+- **Collapsed header fixed.** The collapse control left the header for a hover-revealed button on the
+  rail's right edge (`group-hover`, plus `focus-visible` so it's keyboard-reachable). Collapsed, the
+  header now holds only the centered mark — nothing to collide with.
+- **Draft dead-end fixed** (`actions.ts` + `getOwnedDraftByMatch`): if a match already has a draft,
+  the action returns it (`ok`, with `{subject,body}`) so the drawer shows it, instead of erroring.
+
+**Result.** tsc, lint clean; **362 tests** (incl. 52 contrast). Verified in preview at desktop and
+375px, light and dark: midnight navy reads premium; iconsax nav crisp; mountain logo; collapsed rail
+shows only the centered mark with the edge toggle; mobile drawer matches. New dep: `iconsax-reactjs`.
+
+**Files.** `src/app/globals.css`, `src/components/{app-shell,logo,profile-importer}.tsx`,
+`src/app/(app)/matches/actions.ts`, `src/db/queries/drafts.ts`, `package.json`

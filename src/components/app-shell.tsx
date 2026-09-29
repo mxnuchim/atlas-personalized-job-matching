@@ -5,20 +5,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { Dialog } from "radix-ui";
+import { MenuIcon } from "lucide-react";
 import {
-  ActivityIcon,
-  BriefcaseIcon,
-  GitBranchIcon,
-  InboxIcon,
-  LayoutDashboardIcon,
-  type LucideIcon,
-  MenuIcon,
-  PanelLeftIcon,
-  RssIcon,
-  SettingsIcon,
-  TargetIcon,
-  UserIcon,
-} from "lucide-react";
+  Activity,
+  ArrowLeft2,
+  Briefcase,
+  Category,
+  DirectInbox,
+  Discover,
+  Global,
+  type Icon as IconsaxIcon,
+  Profile,
+  Routing2,
+  Setting2,
+} from "iconsax-reactjs";
 
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -26,18 +26,22 @@ import { UserMenu } from "@/components/user-menu";
 import { SPRING } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
-type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavItem = { href: string; label: string; icon: IconsaxIcon };
 
+/**
+ * Iconsax throughout — inactive rows draw the `Linear` (outline) variant, the active row
+ * the `Bold` (solid) one, so state is legible in the glyph itself, not only the pill.
+ */
 const NAV: NavItem[] = [
-  { href: "/today", label: "Today", icon: LayoutDashboardIcon },
-  { href: "/jobs", label: "Jobs", icon: BriefcaseIcon },
-  { href: "/matches", label: "Matches", icon: TargetIcon },
-  { href: "/review", label: "Review", icon: InboxIcon },
-  { href: "/pipeline", label: "Pipeline", icon: GitBranchIcon },
-  { href: "/sources", label: "Sources", icon: RssIcon },
-  { href: "/runs", label: "Runs", icon: ActivityIcon },
-  { href: "/profile", label: "Profile", icon: UserIcon },
-  { href: "/settings", label: "Settings", icon: SettingsIcon },
+  { href: "/today", label: "Today", icon: Category },
+  { href: "/jobs", label: "Jobs", icon: Briefcase },
+  { href: "/matches", label: "Matches", icon: Discover },
+  { href: "/review", label: "Review", icon: DirectInbox },
+  { href: "/pipeline", label: "Pipeline", icon: Routing2 },
+  { href: "/sources", label: "Sources", icon: Global },
+  { href: "/runs", label: "Runs", icon: Activity },
+  { href: "/profile", label: "Profile", icon: Profile },
+  { href: "/settings", label: "Settings", icon: Setting2 },
 ];
 
 /** Read on the server (layout) so the first paint is already the right width — no flash. */
@@ -78,15 +82,25 @@ export function AppShell({
     <div className="min-h-dvh" style={{ ["--sidebar-w" as string]: `${width}px` }}>
       {/* Desktop rail: fixed, width-animated. Hidden on mobile in favour of the drawer. */}
       <aside
-        className="bg-card fixed inset-y-0 left-0 z-30 hidden border-r duration-(--duration-base) ease-(--ease-standard) [transition-property:width] md:flex md:flex-col"
+        className="group bg-card fixed inset-y-0 left-0 z-30 hidden border-r duration-(--duration-base) ease-(--ease-standard) [transition-property:width] md:flex md:flex-col"
         style={{ width }}
       >
-        <SidebarBody
-          collapsed={collapsed}
-          pathname={pathname}
-          user={user}
-          onToggle={toggleCollapsed}
-        />
+        <SidebarBody collapsed={collapsed} pathname={pathname} user={user} />
+
+        {/* Collapse control lives on the rail's edge, not in the header — at 68px the
+            header has room for the mark alone, so the two never fight for space. Appears
+            on hover of the rail, and on keyboard focus so it's reachable without a mouse. */}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className={cn(
+            "bg-card text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-16 -right-3 z-40 hidden size-6 items-center justify-center rounded-full border shadow-sm transition-opacity focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none md:flex",
+            "opacity-0 group-hover:opacity-100",
+          )}
+        >
+          <ArrowLeft2 size={14} className={cn("transition-transform", collapsed && "rotate-180")} />
+        </button>
       </aside>
 
       {/* Mobile top bar with the menu trigger. */}
@@ -139,25 +153,24 @@ function SidebarBody({
   collapsed,
   pathname,
   user,
-  onToggle,
   onNavigate,
   animatePill = true,
 }: {
   collapsed: boolean;
   pathname: string;
   user: User;
-  onToggle?: () => void;
   onNavigate?: () => void;
   animatePill?: boolean;
 }) {
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
-      <div className="flex h-14 shrink-0 items-center gap-2 px-3">
-        <Link
-          href="/today"
-          onClick={onNavigate}
-          className="flex min-w-0 items-center gap-2 px-1"
-        >
+      <div
+        className={cn(
+          "flex h-14 shrink-0 items-center px-3",
+          collapsed ? "justify-center" : "gap-2",
+        )}
+      >
+        <Link href="/today" onClick={onNavigate} className="flex min-w-0 items-center gap-2 px-1">
           <span className="text-primary shrink-0">
             <Logo />
           </span>
@@ -165,16 +178,6 @@ function SidebarBody({
             <span className="font-display truncate text-sm font-semibold tracking-tight">Atlas</span>
           )}
         </Link>
-        {onToggle && (
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="text-muted-foreground hover:text-foreground hover:bg-secondary focus-visible:ring-ring ml-auto rounded-md p-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none"
-          >
-            <PanelLeftIcon className="size-4" />
-          </button>
-        )}
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-2" aria-label="Primary">
@@ -225,6 +228,7 @@ function NavRow({
       className={cn(
         "group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
         "focus-visible:ring-ring/60 outline-none focus-visible:ring-2",
+        collapsed && "justify-center",
         active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
       )}
     >
@@ -238,8 +242,8 @@ function NavRow({
         ) : (
           <span className="bg-secondary absolute inset-0 -z-10 rounded-md" />
         ))}
-      <Icon className="size-[18px] shrink-0" strokeWidth={active ? 2.2 : 2} />
-      <span className={cn("truncate transition-opacity duration-150", collapsed && "opacity-0")}>
+      <Icon variant={active ? "Bold" : "Linear"} size={18} className="shrink-0" />
+      <span className={cn("truncate transition-opacity duration-150", collapsed && "hidden")}>
         {item.label}
       </span>
     </Link>

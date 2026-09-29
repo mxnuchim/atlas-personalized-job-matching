@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { AlertTriangleIcon, CheckIcon, SparklesIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckIcon } from "lucide-react";
+import { DocumentText } from "iconsax-reactjs";
 import { toast } from "sonner";
 
 import {
@@ -53,7 +54,7 @@ export function ProfileImporter({ hasProfile }: { hasProfile: boolean }) {
     <div className="space-y-6">
       <section className="bg-card space-y-3 rounded-xl border p-5">
         <div className="flex items-start gap-3">
-          <SparklesIcon className="text-primary-ink mt-0.5 size-5 shrink-0" strokeWidth={1.75} />
+          <DocumentText variant="Bulk" size={20} className="text-primary-ink mt-0.5 shrink-0" />
           <div className="min-w-0 flex-1">
             <h2 className="font-display text-base font-semibold">Start from your CV</h2>
             <p className="text-muted-foreground mt-1 text-sm text-pretty">

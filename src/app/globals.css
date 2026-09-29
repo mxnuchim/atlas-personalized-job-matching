@@ -141,54 +141,56 @@
 }
 
 .dark {
-  /* Dark — deep slate base, considered (not near-black), user-toggleable */
-  --background: #12141a;
-  --foreground: #e7e9ee;
-  --card: #1a1d26;
-  --card-foreground: #e7e9ee;
-  --popover: #222634;
-  --popover-foreground: #e7e9ee;
+  /* Dark — midnight navy. A deep, genuinely blue base (hue ~226°), not the muted
+     slate-grey it replaced. Surfaces step up in lightness while staying on that one
+     hue, so the whole theme reads as one considered midnight rather than grey chrome. */
+  --background: #0a0f1e;
+  --foreground: #e8eaf1;
+  --card: #111629;
+  --card-foreground: #e8eaf1;
+  --popover: #151b31;
+  --popover-foreground: #e8eaf1;
 
   --primary: #4c5bd4;
   --primary-foreground: #ffffff;
-  /* Lightened for text: the fill value only reached 3.01:1 on the dark card. */
-  --primary-ink: #7d88e0;
-  --secondary: #222634;
-  --secondary-foreground: #e7e9ee;
-  --muted: #222634;
-  --muted-foreground: #8a93a6;
-  --accent: #262b3a;
-  --accent-foreground: #e7e9ee;
+  /* Lightened for text: the fill value only reached ~3:1 on the dark card. */
+  --primary-ink: #8590e6;
+  --secondary: #182039;
+  --secondary-foreground: #e8eaf1;
+  --muted: #182039;
+  --muted-foreground: #99a3ba;
+  --accent: #1e2745;
+  --accent-foreground: #e8eaf1;
 
   --destructive: #e06a60;
-  --destructive-foreground: #12141a;
+  --destructive-foreground: #0a0f1e;
 
-  --border: #2a2f3c;
-  --input: #2a2f3c;
+  --border: #232c49;
+  --input: #232c49;
   --ring: #6b78e0;
 
   --tier-strong: #35b57b;
   --tier-possible: #e0a64b;
-  --tier-stretch: #8a93a6;
+  --tier-stretch: #99a3ba;
   /* On dark, the vivid greens and ambers already clear AA on their own tint; only
      the grey needed lifting. Kept as explicit tokens so the two themes stay symmetric. */
   --tier-strong-ink: #35b57b;
   --tier-possible-ink: #e0a64b;
-  --tier-stretch-ink: #8b94a7;
+  --tier-stretch-ink: #99a3ba;
 
   --chart-1: #6b78e0;
   --chart-2: #35b57b;
   --chart-3: #e0a64b;
-  --chart-4: #8a93a6;
-  --chart-5: #e7e9ee;
+  --chart-4: #99a3ba;
+  --chart-5: #e8eaf1;
 
-  --sidebar: #1a1d26;
-  --sidebar-foreground: #e7e9ee;
+  --sidebar: #111629;
+  --sidebar-foreground: #e8eaf1;
   --sidebar-primary: #6b78e0;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #222634;
-  --sidebar-accent-foreground: #e7e9ee;
-  --sidebar-border: #2a2f3c;
+  --sidebar-accent: #182039;
+  --sidebar-accent-foreground: #e8eaf1;
+  --sidebar-border: #232c49;
   --sidebar-ring: #6b78e0;
 }
 
