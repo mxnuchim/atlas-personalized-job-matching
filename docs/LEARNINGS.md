@@ -1353,3 +1353,19 @@ the multipart overhead too. Vercel's own ceiling on a request is 4.5 MB.
 
 **Rule.** Any action that accepts a file: set the body limit explicitly, keep it under the
 platform's ceiling, and validate a smaller size so the error is yours, not the platform's.
+
+---
+
+## 2026-10-02 13:20 — One `useTransition` per list is one lock for the whole list
+
+**Problem.** Marking one role applied on Today froze every row until the server answered.
+
+**Root cause.** The queue used a single `useTransition` and put `disabled={pending}` on every row's
+buttons. `pending` is true while *any* transition from that hook runs, so one row's request locked
+them all.
+
+**Fix.** No shared disabled state: the acted-on row disappears optimistically, which is all the
+double-submit protection it needs.
+
+**Rule.** A `pending` flag is scoped to its hook, not to the thing you clicked. For per-item actions,
+guard per item (optimistic removal, or a set of in-flight ids) — never with the list's flag.

@@ -49,6 +49,7 @@ export function MatchDrawer({
   match,
   strengthLabels,
   resumeReady = false,
+  onAction,
   onOpenChange,
   onCloseFocus,
 }: {
@@ -63,6 +64,12 @@ export function MatchDrawer({
   onCloseFocus?: () => void;
   /** Whether you have a resume on file — without one, "Tailor resume" links to Profile instead. */
   resumeReady?: boolean;
+  /**
+   * "I applied" / "Not interested", handed to the list that opened the drawer — it owns
+   * the rows, so it closes the drawer and updates its own view (Today drops the role
+   * at once). Without it, the drawer runs the action itself and stays open.
+   */
+  onAction?: (kind: "applied" | "dismissed") => void;
 }) {
   return (
     <Dialog.Root open={match !== null} onOpenChange={onOpenChange}>
@@ -83,7 +90,13 @@ export function MatchDrawer({
           {/* Keyed by id so a different match remounts the body — resetting any inline
               draft state to that role, never carrying the previous one over. */}
           {match ? (
-            <DrawerBody key={match.id} match={match} strengthLabels={strengthLabels} resumeReady={resumeReady} />
+            <DrawerBody
+              key={match.id}
+              match={match}
+              strengthLabels={strengthLabels}
+              resumeReady={resumeReady}
+              onAction={onAction}
+            />
           ) : null}
         </Dialog.Content>
       </Dialog.Portal>
@@ -95,10 +108,12 @@ function DrawerBody({
   match,
   strengthLabels,
   resumeReady,
+  onAction,
 }: {
   match: MatchRow;
   strengthLabels: Record<string, string>;
   resumeReady: boolean;
+  onAction?: (kind: "applied" | "dismissed") => void;
 }) {
   const rewarded = [...match.strengthMatches].sort((a, b) => b.rewarded - a.rewarded);
   const location = match.location ?? (match.remote ? "Remote" : "Location not stated");
@@ -246,6 +261,7 @@ function DrawerBody({
               contactEmail={match.contactEmail}
               closed={match.closed}
               onDrafted={setDraft}
+              onAction={onAction}
               jobId={match.jobId}
               resumeId={match.resumeId ?? null}
               resumeReady={resumeReady}
@@ -390,6 +406,7 @@ function DrawerActions({
   jobId,
   resumeId,
   resumeReady,
+  onAction,
 }: {
   matchId: string;
   url: string;
@@ -400,6 +417,7 @@ function DrawerActions({
   jobId: string;
   resumeId: string | null;
   resumeReady: boolean;
+  onAction?: (kind: "applied" | "dismissed") => void;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -481,7 +499,7 @@ function DrawerActions({
       <button
         type="button"
         disabled={pending}
-        onClick={() => run(markAppliedAction, "Tracking…")}
+        onClick={() => (onAction ? onAction("applied") : run(markAppliedAction, "Tracking…"))}
         className="border-border bg-card text-tier-strong-ink hover:bg-muted focus-visible:ring-ring inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
       >
         <CheckIcon className="size-4" />
@@ -491,7 +509,7 @@ function DrawerActions({
       <button
         type="button"
         disabled={pending}
-        onClick={() => run(dismissMatchAction, "Closing…")}
+        onClick={() => (onAction ? onAction("dismissed") : run(dismissMatchAction, "Closing…"))}
         className="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
       >
         <XCircleIcon className="size-4" />

@@ -41,7 +41,10 @@ export default async function ResumePage({
   if (!ready) {
     return (
       <div className="space-y-8">
-        <PageHeader title="Resume" description="A resume rewritten for each role — with its keywords, backed by your experience." />
+        <PageHeader
+          title="Resume"
+          description="Tailor your resume to the roles you choose — their keywords, backed by your experience. Only when you ask."
+        />
         <EmptyState
           icon={<FileTextIcon className="size-7" strokeWidth={1.5} />}
           title="Add your resume first"

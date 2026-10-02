@@ -129,5 +129,7 @@ export async function dismissMatchAction(input: unknown): Promise<ActionResult> 
   logger.info({ matchId: parsed.data.matchId }, "match dismissed");
   revalidatePath("/pipeline");
   revalidatePath("/matches");
+  // The day's queue excludes dismissed roles; without this it could show one again.
+  revalidatePath("/today");
   return { ok: true, message: "Closed. It stays in the pipeline as a record." };
 }

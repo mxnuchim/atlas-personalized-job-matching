@@ -35,7 +35,10 @@ export function DailyQueue({
   /** Whether you have a resume on file — gates "Tailor resume" in the drawer. */
   resumeReady?: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
+  // One transition per click, but no shared pending flag: a role being marked must never
+  // freeze the others. Each row disappears the moment it's acted on, so it can't be
+  // submitted twice anyway.
+  const [, startTransition] = useTransition();
   const [open, setOpen] = useState<MatchRow | null>(null);
   // Removing on click keeps the queue feeling like a list you are clearing, rather
   // than one that reshuffles under you after a round trip.
@@ -110,7 +113,6 @@ export function DailyQueue({
               </a>
               <button
                 type="button"
-                disabled={pending}
                 onClick={() => run(match, markAppliedAction, "Tracked")}
                 className="text-tier-strong-ink hover:bg-muted focus-visible:ring-ring rounded-md p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                 aria-label={`Mark ${match.title} as applied`}
@@ -120,7 +122,6 @@ export function DailyQueue({
               </button>
               <button
                 type="button"
-                disabled={pending}
                 onClick={() => run(match, dismissMatchAction, "Closed")}
                 className="text-muted-foreground hover:text-destructive hover:bg-muted focus-visible:ring-ring rounded-md p-2 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                 aria-label={`Dismiss ${match.title}`}
@@ -138,6 +139,15 @@ export function DailyQueue({
         strengthLabels={strengthLabels}
         resumeReady={resumeReady}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+        // Acting from the drawer is the same as acting from the row: close it, drop the role
+        // from the queue at once, let the server catch up.
+        onAction={(kind) => {
+          if (!open) return;
+          const match = open;
+          setOpen(null);
+          if (kind === "applied") run(match, markAppliedAction, "Tracked");
+          else run(match, dismissMatchAction, "Closed");
+        }}
       />
     </>
   );

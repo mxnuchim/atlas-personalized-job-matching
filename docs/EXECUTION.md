@@ -2166,3 +2166,79 @@ server via a dev-only route; UI verified at desktop and 375px. **Migration not y
 `src/lib/resume/*`, `src/pipeline/resume/*`, `src/app/(app)/resume/**`, `src/app/(app)/{profile,matches,today,jobs}/page.tsx`,
 `src/app/(app)/matches/actions.ts`, `src/components/resume/*`, `src/components/{match-drawer,matches-table,daily-queue,app-shell}.tsx`,
 `src/lib/{env,session}.ts`, `src/lib/llm/config.ts`, `next.config.ts`, `package.json`, docs
+
+---
+
+## 2026-10-02 12:15 — Resume shipped; research for application-question answers
+
+**Context.** Roll out the resume feature (migrate first, per DEPLOY.md), then scope the next
+feature: draft answers to application-form questions ("Why Monzo?") to paste alongside the
+tailored resume.
+
+**Action.**
+- `db:status` on Neon (host confirmed `…eu-central-1.aws.neon.tech`): 0010 pending → `db:migrate`
+  → `db:status` up to date; all four resume tables verified present. Then pushed `73ffe83`.
+- Research, read-only (throwaway scripts, deleted): where Manuchim's strong matches come from, and
+  what their application forms actually ask.
+
+**Result.**
+- Strong matches by ATS: **Greenhouse 290 / 369 (79%)**, Ashby 39, aggregators 39, Lever 1.
+- **Greenhouse exposes the full form** via the official Job Board API —
+  `GET boards-api.greenhouse.io/v1/boards/{board}/jobs/{id}?questions=true` returns every question
+  with type (`input_text`, `textarea`, `multi_value_single_select` + options), `required`, plus
+  `location_questions`, `demographic_questions`, `compliance`. Free, ToS-clean.
+- **Ashby's public posting API does not** — only `applyUrl`. (Its job pages use an undocumented
+  internal endpoint; deliberately not relied on.)
+- Top 20 strong Greenhouse forms: **165 custom questions, ~4 essays (2.4%)**; the rest are facts —
+  location/relocation 38, visa/sponsorship 26, links 15, notice/start 15, consent/GDPR 12, salary 7,
+  prior employment/relatives 7, references 5, how-heard 5, demographic 4. Real essays seen: Monzo
+  "What attracted you to Monzo?", "Most interesting project you've worked on recently?", SumUp
+  "anything else?", GitLab open-source links.
+- Design proposed (awaiting decisions): essays → AI (YC style, guarded); facts → saved-once
+  `application_facts`, never model-invented; consent/EEO/attestations → never answered. Greenhouse
+  automatic, paste for the rest. A "Questions" tab on `/resume/[id]`. ~0.3¢ per job for essays.
+
+**Files.** none beyond docs — research only.
+
+---
+
+## 2026-10-02 12:40 — Resume copy: on-demand, not per role; application-questions dropped
+
+**Context.** Oliver read "a resume rewritten for each role" as Atlas generating one for every
+role — a compounding cost he didn't want. He also dropped the application-questions feature:
+with ~97% of form questions being facts he can answer himself, it isn't worth building.
+
+**Action.** Verified generation is click-only: every resume/letter generator is called solely from a
+Server Action, and `run.ts` / `cli.ts` / the workflows never reference resumes. Rewrote the two
+lines that implied otherwise (Profile source card, Resume empty state) to say tailoring happens
+when you click, and only then.
+
+**Result.** tsc, lint clean. No behaviour change — the feature already worked this way; the words
+now say so. Application-questions design (prior entry) is shelved, not scheduled.
+
+**Files.** `src/components/resume/resume-source-card.tsx`, `src/app/(app)/resume/page.tsx`
+
+---
+
+## 2026-10-02 13:20 — Today queue: no freeze on "I applied"; acting from the drawer closes it
+
+**Context.** On Today, clicking "I applied" on one role froze every row's buttons until the request
+finished; and "I applied" / "Not interested" inside the drawer left the drawer open and the role in
+the list.
+
+**Action.**
+- `daily-queue.tsx`: removed the shared `disabled={pending}` — one `useTransition` flag was
+  disabling every row while any one action ran. Rows vanish optimistically on click, so they can't
+  be double-submitted anyway.
+- `match-drawer.tsx`: new `onAction(kind)` prop — the drawer hands "I applied" / "Not interested" to
+  the list that opened it. Today closes the drawer and drops the role at once (same optimistic path
+  as the row buttons); Matches closes the drawer and keeps the row (it's the full archive). Without
+  the prop, the drawer still runs the action itself.
+- `dismissMatchAction` now revalidates `/today` — the queue excludes dismissed roles, and without it
+  a dismissed role could come back once the optimistic state settled.
+
+**Result.** Verified in a dev-only queue preview: after clicking Monzo's ✓, Monzo is gone and the
+other rows' buttons are `disabled: false`; 30 ms after "I applied" in the drawer, the drawer is
+closed and that role is out of the list. tsc, lint clean; 395 tests.
+
+**Files.** `src/components/{daily-queue,match-drawer,matches-table}.tsx`, `src/app/(app)/matches/actions.ts`

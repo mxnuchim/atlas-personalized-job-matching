@@ -43,7 +43,7 @@ export function ResumeSourceCard({ master }: { master: MasterSummary | null }) {
           <p className="text-muted-foreground mt-1 text-sm text-pretty">
             {master
               ? "Every tailored resume and cover letter starts from this. Replace it whenever your experience changes."
-              : "Add it to unlock tailoring: a resume rewritten for each role, with the posting's keywords — only ones your experience backs."}
+              : "Add it to unlock tailoring. When a role is worth it, click Tailor resume to get a version with that posting's keywords — only ones your experience backs. Nothing is generated until you ask."}
           </p>
         </div>
         {master && !editing ? (

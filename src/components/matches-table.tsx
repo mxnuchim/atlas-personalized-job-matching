@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowDownIcon, ArrowUpIcon, ExternalLinkIcon, SearchIcon } from "lucide-react";
+import { toast } from "sonner";
+
+import { dismissMatchAction, markAppliedAction } from "@/app/(app)/matches/actions";
 
 import { FitGauge } from "@/components/fit-gauge";
 import { MatchDrawer } from "@/components/match-drawer";
@@ -201,6 +204,20 @@ export function MatchesTable({
   }
 
   const openMatch = rows.find((m) => m.id === openId) ?? null;
+
+  // "I applied" / "Not interested" from the drawer: close it straight away and let the
+  // action finish in the background. Matches is the full archive, so the row stays.
+  const [, startAction] = useTransition();
+  function actFromDrawer(kind: "applied" | "dismissed") {
+    if (!openMatch) return;
+    const matchId = openMatch.id;
+    setOpenId(null);
+    startAction(async () => {
+      const result = await (kind === "applied" ? markAppliedAction : dismissMatchAction)({ matchId });
+      if (result.ok) toast.success(result.message ?? "Done.");
+      else toast.error(result.error);
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -404,6 +421,7 @@ export function MatchesTable({
         match={openMatch}
         strengthLabels={strengthLabels}
         resumeReady={resumeReady}
+        onAction={actFromDrawer}
         onOpenChange={(open) => {
           if (!open) setOpenId(null);
         }}
