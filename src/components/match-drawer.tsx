@@ -21,6 +21,7 @@ import {
 } from "@/app/(app)/matches/actions";
 
 import { CopyButton } from "@/components/copy-button";
+import { TailorResumeButton } from "@/components/resume/tailor-button";
 import { FitGauge } from "@/components/fit-gauge";
 import { TierChip } from "@/components/tier-chip";
 import type { MatchRow } from "@/db/queries/matches";
@@ -47,6 +48,7 @@ const DIMENSIONS: { key: keyof MatchRow["dimensions"]; label: string }[] = [
 export function MatchDrawer({
   match,
   strengthLabels,
+  resumeReady = false,
   onOpenChange,
   onCloseFocus,
 }: {
@@ -59,6 +61,8 @@ export function MatchDrawer({
    * on `<body>` — which silently kills `j`/`k` for anyone working by keyboard.
    */
   onCloseFocus?: () => void;
+  /** Whether you have a resume on file — without one, "Tailor resume" links to Profile instead. */
+  resumeReady?: boolean;
 }) {
   return (
     <Dialog.Root open={match !== null} onOpenChange={onOpenChange}>
@@ -79,7 +83,7 @@ export function MatchDrawer({
           {/* Keyed by id so a different match remounts the body — resetting any inline
               draft state to that role, never carrying the previous one over. */}
           {match ? (
-            <DrawerBody key={match.id} match={match} strengthLabels={strengthLabels} />
+            <DrawerBody key={match.id} match={match} strengthLabels={strengthLabels} resumeReady={resumeReady} />
           ) : null}
         </Dialog.Content>
       </Dialog.Portal>
@@ -90,9 +94,11 @@ export function MatchDrawer({
 function DrawerBody({
   match,
   strengthLabels,
+  resumeReady,
 }: {
   match: MatchRow;
   strengthLabels: Record<string, string>;
+  resumeReady: boolean;
 }) {
   const rewarded = [...match.strengthMatches].sort((a, b) => b.rewarded - a.rewarded);
   const location = match.location ?? (match.remote ? "Remote" : "Location not stated");
@@ -240,6 +246,9 @@ function DrawerBody({
               contactEmail={match.contactEmail}
               closed={match.closed}
               onDrafted={setDraft}
+              jobId={match.jobId}
+              resumeId={match.resumeId ?? null}
+              resumeReady={resumeReady}
             />
 
             <p className="text-muted-foreground text-xs">
@@ -378,6 +387,9 @@ function DrawerActions({
   contactEmail,
   closed,
   onDrafted,
+  jobId,
+  resumeId,
+  resumeReady,
 }: {
   matchId: string;
   url: string;
@@ -385,6 +397,9 @@ function DrawerActions({
   closed: boolean;
   /** Hand a freshly generated draft up so the drawer can show it inline. */
   onDrafted: (draft: { subject: string; body: string }) => void;
+  jobId: string;
+  resumeId: string | null;
+  resumeReady: boolean;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -444,6 +459,9 @@ function DrawerActions({
         <ExternalLinkIcon className="size-4" />
         Apply
       </a>
+
+      {/* Tailor before you apply: the posting's keywords, your experience. */}
+      <TailorResumeButton jobId={jobId} resumeId={resumeId} ready={resumeReady} />
 
       {/* Only when the posting gives you someone to email. */}
       {contactEmail && (

@@ -5,8 +5,9 @@ import { z } from "zod";
 
 import { getOwnedDraftByMatch } from "@/db/queries/drafts";
 import { openOwnedOutreach, ownsMatch, setOutreachStatus } from "@/db/queries/outreach";
+import { markResumeUsedForMatch } from "@/db/queries/resumes";
 import { log } from "@/lib/logger";
-import { actingProfileId, requireSession } from "@/lib/session";
+import { actingProfileId, actingUserId, requireSession } from "@/lib/session";
 import { runDraft } from "@/pipeline/drafting/draft";
 
 /**
@@ -74,6 +75,7 @@ export async function draftMatchAction(input: unknown): Promise<ActionResult> {
  * honest and clears the role out of tomorrow's queue.
  */
 export async function markAppliedAction(input: unknown): Promise<ActionResult> {
+  const userId = await actingUserId();
   const acting = await actingProfileId();
   if (!acting.ok) return { ok: false, error: acting.error };
 
@@ -92,9 +94,13 @@ export async function markAppliedAction(input: unknown): Promise<ActionResult> {
   const updated = await setOutreachStatus(row.id, "sent");
   if (!updated) return { ok: false, error: "Could not record that. Try again." };
 
+  // If you tailored a resume for this role, that's the version you sent — record it.
+  await markResumeUsedForMatch(parsed.data.matchId, userId);
+
   logger.info({ matchId: parsed.data.matchId }, "marked applied");
   revalidatePath("/today");
   revalidatePath("/pipeline");
+  revalidatePath("/resume");
   return { ok: true, message: "Tracked. It will not come back tomorrow." };
 }
 

@@ -117,6 +117,14 @@ export type MatchRow = {
   /** Plain text, capped. `descriptionTruncated` says whether anything was cut. */
   description: string;
   descriptionTruncated: boolean;
+  /**
+   * Resume state, attached per page by `attachResumeInfo` — never by the base queries,
+   * so the scheduled run (which reads every match) pays nothing for it. `undefined` means
+   * not attached; `null` means attached and there is none.
+   */
+  resumeId?: string | null;
+  /** Technical keywords in this posting that your resume can claim. Null with no resume on file. */
+  keywords?: { matched: number; total: number; missing: string[] } | null;
 };
 
 /** Generous enough to read in the drawer; the original is always one link away. */

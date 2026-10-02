@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/empty-state";
 import { MatchesTable } from "@/components/matches-table";
 import { PageHeader } from "@/components/page-header";
 import { getMatchCounts, listMatchRowsPage, type MatchSort } from "@/db/queries/matches";
+import { attachResumeInfo } from "@/db/queries/resumes";
 import { parsePageParams } from "@/lib/pagination";
 import type { FitTier } from "@/lib/scoring";
 import { requireProfile } from "@/lib/session";
@@ -43,7 +44,7 @@ export default async function MatchesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { profile } = await requireProfile();
+  const { session, profile } = await requireProfile();
 
   const sp = await searchParams;
   const { page, pageSize } = parsePageParams(sp);
@@ -58,6 +59,9 @@ export default async function MatchesPage({
         getMatchCounts(profile.id),
       ])
     : [null, { total: 0, strong: 0, possible: 0, scoredToday: 0 }];
+
+  // Resume state for the rows on screen only — a page of 25, never the whole corpus.
+  const resume = pageData ? await attachResumeInfo(pageData.items, session.user.id) : null;
 
   const strengthLabels = Object.fromEntries(
     (profile?.strengths ?? []).map((s) => [s.key, s.label]),
@@ -82,7 +86,8 @@ export default async function MatchesPage({
         />
       ) : (
         <MatchesTable
-          page={pageData}
+          page={{ ...pageData, items: resume?.rows ?? pageData.items }}
+          resumeReady={resume?.ready ?? false}
           strengthLabels={strengthLabels}
           tier={tier ?? "all"}
           q={q}

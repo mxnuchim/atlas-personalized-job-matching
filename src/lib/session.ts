@@ -50,3 +50,17 @@ export async function actingProfileId(): Promise<
   if (!profile) return { ok: false, error: "Set up your profile before using this." };
   return { ok: true, profileId: profile.id };
 }
+
+/**
+ * The acting user's id — the owner of user-scoped rows (resumes), as `actingProfileId`
+ * is for profile-scoped ones. A resume belongs to the person, not a profile version, so
+ * a profile re-import never touches it.
+ *
+ * Named, rather than read off the session inline, so every action visibly establishes
+ * whose rows it may touch — `authorization.test.ts` requires one of the two in each
+ * action file. Pair it with `getOwned*(id, userId)` fetches.
+ */
+export async function actingUserId(): Promise<string> {
+  const session = await requireSession();
+  return session.user.id;
+}

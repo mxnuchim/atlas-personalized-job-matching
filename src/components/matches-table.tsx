@@ -49,6 +49,37 @@ function Key({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Keyword coverage for one row — free, from the lexicon, no model call. Neutral ink on
+ * purpose: tier colours belong to fit, and this is a different question.
+ */
+function KeywordCell({ keywords }: { keywords: MatchRow["keywords"] }) {
+  if (keywords === undefined) return null;
+  if (keywords === null) {
+    return (
+      <span className="text-muted-foreground" title="Add your resume in Profile to see keyword coverage">
+        —
+      </span>
+    );
+  }
+  if (keywords.total === 0) {
+    return (
+      <span className="text-muted-foreground" title="This posting names no technologies Atlas tracks">
+        —
+      </span>
+    );
+  }
+  const strong = keywords.matched / keywords.total >= 0.8;
+  return (
+    <span
+      className={strong ? "text-foreground font-medium" : "text-muted-foreground"}
+      title={keywords.missing.length > 0 ? `Not on your resume: ${keywords.missing.join(", ")}` : "Your resume covers all of them"}
+    >
+      {keywords.matched}/{keywords.total}
+    </span>
+  );
+}
+
 export function MatchesTable({
   page,
   strengthLabels,
@@ -56,9 +87,12 @@ export function MatchesTable({
   q,
   sort,
   dir,
+  resumeReady = false,
 }: {
   page: Paginated<MatchRow>;
   strengthLabels: Record<string, string>;
+  /** Whether you have a resume on file — gates "Tailor resume" in the drawer. */
+  resumeReady?: boolean;
   tier: FitTier | "all";
   q: string;
   sort: MatchSort;
@@ -248,6 +282,14 @@ export function MatchesTable({
                     </button>
                   </th>
                 ))}
+                <th scope="col" className="hidden w-[84px] text-left font-medium xl:table-cell">
+                  <span
+                    className="text-muted-foreground"
+                    title="Of the technologies this posting names, how many your resume can claim"
+                  >
+                    Keywords
+                  </span>
+                </th>
                 <th scope="col" className="hidden w-[92px] text-left font-medium sm:table-cell">
                   <span className="text-muted-foreground">Tier</span>
                 </th>
@@ -308,6 +350,9 @@ export function MatchesTable({
                       </span>
                     )}
                   </td>
+                  <td className="hidden py-2.5 text-xs tabular-nums xl:table-cell">
+                    <KeywordCell keywords={match.keywords} />
+                  </td>
                   <td className="hidden py-2.5 sm:table-cell">
                     <TierChip tier={match.tier} />
                   </td>
@@ -358,6 +403,7 @@ export function MatchesTable({
       <MatchDrawer
         match={openMatch}
         strengthLabels={strengthLabels}
+        resumeReady={resumeReady}
         onOpenChange={(open) => {
           if (!open) setOpenId(null);
         }}

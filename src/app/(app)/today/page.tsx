@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { StatStrip } from "@/components/stat-strip";
 import { countDailyQueue, getMatchCounts, listDailyQueue } from "@/db/queries/matches";
+import { attachResumeInfo } from "@/db/queries/resumes";
 import { countJobs } from "@/db/queries/jobs";
 import { getLastFinishedRun } from "@/db/queries/runs";
 import { env } from "@/lib/env";
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
 export default async function TodayPage() {
   // Everything on this page is scoped to the signed-in user's profile. A new account
   // has none until it is seeded, which is an empty state rather than an error.
-  const { profile } = await requireProfile();
+  const { session, profile } = await requireProfile();
 
   const [counts, queue, waiting, jobCount, lastRun] = await Promise.all([
     profile ? getMatchCounts(profile.id) : { total: 0, strong: 0, possible: 0, scoredToday: 0 },
@@ -33,6 +34,9 @@ export default async function TodayPage() {
     countJobs(),
     getLastFinishedRun(),
   ]);
+
+  // Resume state for the queue's handful of roles — powers "Tailor resume" in the drawer.
+  const resume = await attachResumeInfo(queue, session.user.id);
 
   const nextRun = nextRunLabel(new Date(), env.APP_TZ);
   const strengthLabels = Object.fromEntries(
@@ -78,7 +82,12 @@ export default async function TodayPage() {
             </Link>
           </div>
 
-          <DailyQueue matches={queue} strengthLabels={strengthLabels} waiting={waiting} />
+          <DailyQueue
+            matches={resume.rows}
+            strengthLabels={strengthLabels}
+            waiting={waiting}
+            resumeReady={resume.ready}
+          />
         </section>
       )}
     </div>

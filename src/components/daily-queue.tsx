@@ -26,11 +26,14 @@ export function DailyQueue({
   matches,
   strengthLabels,
   waiting,
+  resumeReady = false,
 }: {
   matches: MatchRow[];
   strengthLabels: Record<string, string>;
   /** Total unacted matches, so the queue can say what it is holding back. */
   waiting: number;
+  /** Whether you have a resume on file — gates "Tailor resume" in the drawer. */
+  resumeReady?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState<MatchRow | null>(null);
@@ -133,6 +136,7 @@ export function DailyQueue({
       <MatchDrawer
         match={open}
         strengthLabels={strengthLabels}
+        resumeReady={resumeReady}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
       />
     </>

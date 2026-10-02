@@ -435,6 +435,44 @@ Two icon sets, by region:
   mountains — not a star. A four-point star / sparkle / wand glyph is banned across the app; if a
   "smart"/"AI" affordance needs a mark, use a document, wand-free.
 
+## 10e. Resume tailoring
+
+**Truthful by construction.** The model chooses which of your bullets to show, in what order and
+in whose words; it is never asked for a company, title, date, degree or contact detail — those are
+copied from the master resume in code (`assembleTailored`). Every rewritten bullet must cite the
+master bullet it came from (`z.enum` of real ids) and pass three checks against it: no new numbers,
+no new technologies (beyond what the lexicon says it implies — Terraform → "infrastructure as
+code"), no invented outcome clause. A failing line **reverts to your wording** — real experience is
+never dropped — and the count is shown ("kept your original wording on 2 lines"). Skills you
+confirm ("I have this") may appear in the summary and skills, never inside a bullet: that would
+claim *where* you used them.
+
+**The gate.** No master resume, no tailoring — enforced in the service (every entry point returns
+"Add your resume in Profile first"), and reflected in the UI rather than discovered by failing:
+the Resume page shows an empty state pointing to Profile; "Tailor resume" becomes "Add resume
+first" (a link, not a button that errors).
+
+**Coverage is measured on the page.** "Covered" means the keyword is in the *tailored* text — what
+an ATS indexes. Status dots reuse the guardrail vocabulary (§10a): `--tier-strong` on the page,
+`--tier-possible` in your resume but unused here, hollow for a real gap. The meters are the
+drawer's quiet `bg-primary/70` bar — magnitude, not verdict; tier colours stay reserved for fit.
+The Matches **Keywords** column is lexicon-only (no model call), shown from `xl` up so it never
+squeezes the Role column.
+
+**The preview is paper.** The tailored resume renders on a white sheet in both themes, in the PDF's
+own font, greys and section order — the one deliberate exception to theme tokens, because the
+preview should be what you download. Downloads are ATS-first: one column, real text, standard
+section names, contact in the body, Helvetica (PDF, sanitized to WinAnsi, never hyphenated) or
+Calibri (DOCX).
+
+**Waiting and destroying.** Generations take 20-40s, so their buttons count seconds
+(`useElapsed`) instead of spinning silently. Regenerate (overwrites edits) and delete take a second
+click; the armed state disarms itself after 4s.
+
+**Cost is visible.** Each resume shows what it cost; the Resume page shows the rolling-24h count
+against `RESUME_DAILY_LIMIT` and its dollars. Measured: ~½¢ per tailored resume, ¼¢ once per
+upload, ~0.2¢ per letter.
+
 ## 11. Open items
 
 Known inconsistencies. Fix when you're next in the file; don't add to them.

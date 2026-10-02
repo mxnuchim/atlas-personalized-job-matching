@@ -96,6 +96,12 @@ export async function listJobsPage(
   return paginated(rows, total, safePage, pageSize);
 }
 
+/** One posting by id. Jobs are a shared corpus — any signed-in user may read one. */
+export async function getJob(id: string): Promise<Job | null> {
+  const [row] = await db.select().from(jobs).where(eq(jobs.id, id)).limit(1);
+  return row ?? null;
+}
+
 export async function countJobs(): Promise<number> {
   const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(jobs);
   return row?.count ?? 0;

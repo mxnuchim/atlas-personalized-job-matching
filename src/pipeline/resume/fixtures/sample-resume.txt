@@ -1,0 +1,47 @@
+JORDAN RIVERA
+Senior Platform Engineer
+Lisbon, Portugal · jordan.rivera@example.com · +351 900 000 000
+linkedin.com/in/jordan-rivera-example · github.com/jrivera-example
+
+SUMMARY
+Platform engineer with a payments background who builds and runs cloud infrastructure that other engineers ship on. I care about boring, reliable systems and fast feedback loops.
+
+EXPERIENCE
+
+Northwind Pay — Lisbon (Remote)
+Senior Platform Engineer, Jan 2022 – Present
+• Led migration of 40 services from EC2 to EKS, cutting compute cost 32% and deploy time from 25 to 6 minutes.
+• Built the company's Terraform module library (VPC, EKS, RDS, IAM) now used by 9 product teams.
+• Introduced Datadog SLOs and on-call runbooks; MTTR fell from 3 hours to under 30 minutes.
+• Designed an idempotent payment-retry service in Go handling 1,200 requests per second at p99 < 80ms.
+• Mentored 4 engineers through promotion to mid-level.
+
+Platform Engineer, Mar 2020 – Dec 2021
+• Replaced Jenkins with GitHub Actions for 60 repositories; median CI time dropped 41%.
+• Wrote a Kubernetes operator in Go that automated PostgreSQL backups → restores across 3 regions.
+• Ran PCI DSS audit evidence collection for the card-data environment.
+
+Brightline Logistics — Porto
+Backend Engineer, Jun 2017 – Feb 2020
+• Built Node.js (Express) APIs for shipment tracking used by 150,000 monthly users.
+• Moved event processing to RabbitMQ with dead-letter queues, eliminating lost updates.
+• Added Jest test coverage from 20% to 75% on the core API.
+
+Freelance
+Web Developer, 2015 – 2017
+• Delivered 12 client websites with React and a headless CMS.
+• Set up Nginx and Let's Encrypt on Linux VPS hosting for small businesses.
+
+PROJECTS
+kubeslo — open-source SLO dashboard for Kubernetes
+• Go service and React UI reading Prometheus metrics; 300 GitHub stars.
+
+SKILLS
+Go, Python, TypeScript, Node.js, AWS (EKS, EC2, RDS, S3, IAM), Kubernetes, Terraform, Helm, Docker, GitHub Actions, Datadog, Prometheus, Grafana, PostgreSQL, Redis, RabbitMQ, Linux
+
+EDUCATION
+BSc Computer Engineering, University of Porto, 2011 – 2015
+
+CERTIFICATIONS
+Certified Kubernetes Administrator (CKA), CNCF, 2023
+AWS Certified Solutions Architect – Associate, 2021

@@ -43,6 +43,18 @@ const envSchema = z.object({
   LLM_PROVIDER: z.enum(["anthropic", "openai", "google", "groq", "gateway"]).default("openai"),
   MODEL_SCORING: z.string().default("gpt-5-mini"),
   MODEL_DRAFTING: z.string().default("gpt-5-mini"),
+  /**
+   * Resume parsing, requirement extraction, tailoring and cover letters. On-demand only —
+   * never part of the scheduled run. Its own slot so the most-used interactive feature
+   * can be tuned (or moved to a cheaper model) without touching scoring.
+   */
+  MODEL_RESUME: z.string().default("gpt-5-mini"),
+  /**
+   * Per-user ceiling on resume model calls in any rolling 24 hours (parses, tailors,
+   * regenerations, letters). At ~1¢ a generation, 40 is a busy day of applying, not a
+   * runaway bill. A cap you can raise without limit is not a cap.
+   */
+  RESUME_DAILY_LIMIT: z.coerce.number().int().min(1).max(200).default(40),
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),

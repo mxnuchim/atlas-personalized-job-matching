@@ -5,6 +5,7 @@ import { InboxIcon } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
+import { TailorResumeButton } from "@/components/resume/tailor-button";
 import {
   countJobsByFreshness,
   FRESHNESS_WINDOWS,
@@ -12,8 +13,10 @@ import {
   parseFreshness,
   type FreshnessKey,
 } from "@/db/queries/jobs";
+import { hasMasterResume, tailoredIdsForJobs } from "@/db/queries/resumes";
 import { isStale, relativeAge } from "@/lib/age";
 import { parsePageParams } from "@/lib/pagination";
+import { requireSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -30,6 +33,7 @@ export default async function JobsPage({
 }: {
   searchParams: Promise<{ window?: string; page?: string; pageSize?: string }>;
 }) {
+  const session = await requireSession();
   const sp = await searchParams;
   const window = parseFreshness(sp.window);
   const { page, pageSize } = parsePageParams(sp);
@@ -38,6 +42,11 @@ export default async function JobsPage({
     countJobsByFreshness(),
   ]);
   const jobs = jobsPage.items;
+  // Resume state for the rows on screen: which you've tailored for, and whether you can.
+  const [resumeReady, resumeIds] = await Promise.all([
+    hasMasterResume(session.user.id),
+    tailoredIdsForJobs(session.user.id, jobs.map((j) => j.id)),
+  ]);
 
   const now = new Date();
   const label = FRESHNESS_WINDOWS[window].label.toLowerCase();
@@ -136,6 +145,15 @@ export default async function JobsPage({
                   ) : (
                     <span className="text-muted-foreground text-xs">No date</span>
                   )}
+                  {job.closedAt === null ? (
+                    <TailorResumeButton
+                      jobId={job.id}
+                      resumeId={resumeIds.get(job.id) ?? null}
+                      ready={resumeReady}
+                      compact
+                      className="h-8"
+                    />
+                  ) : null}
                 </div>
               </li>
             );

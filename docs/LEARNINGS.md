@@ -1281,3 +1281,75 @@ a different model *class*.
 **Rule.** Before reaching for a cheaper/faster model, ask whether the task needs reasoning. If it
 does, a no-reasoning model isn't cheaper — it's a different, worse answer. Match the class to the
 task, then optimize within it.
+
+---
+
+## 2026-10-02 10:30 — A generated document is only correct if a parser reads it back correctly
+
+**Problem.** The resume PDF looked right and still shipped two silent corruptions, both found
+only by extracting its text the way an ATS does: "0→production" read back as "0’production", and
+"github.com/jrivera-example" as "jrivera-ex-" / "ample".
+
+**Root cause.** Two react-pdf defaults. (1) The standard fonts (Helvetica) are WinAnsi-encoded;
+a glyph outside it doesn't error, it maps to a *different* character. (2) Long words are
+hyphenated at line ends — and a parser indexes the pieces, so a split keyword stops matching.
+
+**Fix.** `pdfSafe()` maps or transliterates anything outside Windows-1252 (→ becomes "->", Ọ
+becomes O, á is kept); `Font.registerHyphenationCallback(w => [w])` turns hyphenation off. Both
+are pinned by `render.test.ts`, which renders and then *extracts* — and the hyphenation test was
+checked to fail with the fix removed.
+
+**Rule.** Test generated documents by reading them back with a text extractor, not by looking
+at them. For a resume, the extracted text *is* the product.
+
+---
+
+## 2026-10-02 10:45 — Guards that check facts don't catch embellishment; read the output as its reader would
+
+**Problem.** The tailoring guards (no new numbers, no new technologies) passed a smoke run with
+zero reverts — and the resume was still full of invented outcomes: "…to improve service
+reliability", "…improving developer delivery practices" on freelance websites.
+
+**Root cause.** The model satisfied the keyword brief by appending purpose clauses. They carry no
+number and no tool name, so fact guards can't see them — but a recruiter sees them instantly.
+
+**Fix.** Prompt rule ("never append an outcome the source doesn't state; unchanged is a good
+answer") *plus* a deterministic backstop, `addsUnsupportedOutcome`, built from the real failures
+in that run. Second run: zero invented outcomes, the guard caught two more anyway.
+
+**Rule.** A green guard isn't a good output. Before shipping anything model-written, run it on a
+realistic fixture (`npm run resume:smoke`) and read the result as the end reader would — then
+turn each failure you find into a test.
+
+---
+
+## 2026-10-02 11:00 — Next bundles server code under `react-server`; some libraries need the real React
+
+**Problem.** react-pdf works in a Node script and in Vitest, but is documented to break inside a
+Next route handler.
+
+**Root cause.** Next compiles route handlers with the `react-server` export condition, which
+serves a reduced React. react-pdf ships its own reconciler and needs the full one. (Separately:
+it's ESM-only, so `tsx` in CommonJS mode fails on `@react-pdf/hyphenate/en-us` — scripts that
+render must be `.mts`.)
+
+**Fix.** `@react-pdf/renderer` in `serverExternalPackages`, so Node loads it normally at runtime.
+Proved with a dev-only route rendering a real PDF through the running dev server, then reading it
+back — not assumed from the docs.
+
+**Rule.** For any library with its own renderer or React integration, prove it in the real server
+runtime before building on it. "Works in a script" says nothing about the bundle.
+
+---
+
+## 2026-10-02 11:10 — Server Actions cap request bodies at 1 MB
+
+**Problem.** Resume upload is a Server Action taking a file; most PDF resumes are over 1 MB.
+
+**Root cause.** `experimental.serverActions.bodySizeLimit` defaults to 1 MB, and the limit counts
+the multipart overhead too. Vercel's own ceiling on a request is 4.5 MB.
+
+**Fix.** `bodySizeLimit: "4.5mb"`, files validated at ≤ 4 MB on both client and server.
+
+**Rule.** Any action that accepts a file: set the body limit explicitly, keep it under the
+platform's ceiling, and validate a smaller size so the error is yours, not the platform's.

@@ -56,6 +56,11 @@ to edit a JSON file on someone else's laptop to use this.
 Nothing runs migrations automatically. That is deliberate — a migration that runs on
 every deploy is a migration that runs during a rollback.
 
+**So migrate *before* you push code that reads new tables.** Additive migrations are safe
+to apply ahead of the code (old code ignores new tables); the reverse is the React-441
+incident. Example: `0010_resumes` adds four tables that Today, Matches, Jobs, Profile and
+Resume all query — push the code first and every one of those pages fails until it lands.
+
 **Check it landed** before touching anything else:
 
 ```bash

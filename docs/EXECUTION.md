@@ -2115,3 +2115,54 @@ menu uses (`user.image ?? avatarFor(email)`).
 photos render.
 
 **Files.** `src/app/login/login-form.tsx`
+
+---
+
+## 2026-10-02 11:30 — Resume tailoring: master resume → tailored resume, cover letter, PDF/DOCX
+
+**Context.** Paste or pick a job, get a resume rewritten for it — every ATS keyword the candidate's
+experience supports, nothing it doesn't — as a downloadable PDF/DOCX, plus a cover letter. URL
+`/resume`. Source resume uploaded (PDF/DOCX) or pasted in Profile, gated: no source, no flow.
+Tailor from the match drawer, stored per job and linked to "I applied". Coverage column on Matches.
+Explicit brief: don't blow up expenses.
+
+**Action.**
+
+- **Data** (`0010_resumes`, additive): `master_resumes` (versioned, per *user* — survives profile
+  re-imports), `tailored_resumes` (one per user+job; pasted JDs unlimited), `jd_requirements`
+  (requirements cached by JD hash, shared across users and regenerations), `resume_events` (cost
+  ledger + daily cap).
+- **Pipeline** (`src/pipeline/resume/`): parse (minimal reasoning, once per upload) → requirements
+  (minimal, cached per JD) → tailor (low) → cover letter (low, on demand). System prefix opens with
+  the master so repeat generations hit the provider's cached-input rate. Interactive calls retry
+  once. All through `lib/llm` (`MODEL_RESUME`).
+- **Guards** (`lib/resume/assemble.ts`): facts copied in code; bullets cite real ids (`z.enum`);
+  no new numbers / technologies / outcome clauses → revert to source wording; confirmed skills
+  never enter bullets. Lexicon (`lib/resume/lexicon.ts`, ~180 terms, aliases, implications,
+  case-sensitive forms for "Go"/"React"/"Helm") powers matching, the guards and the free Matches
+  column.
+- **Cost controls:** `RESUME_DAILY_LIMIT` (40/rolling 24h, checked before any call); dedupe (an
+  already-tailored job opens for free); "I have this" is a free write + one tailor call; coverage
+  column uses no model.
+- **UI:** Profile → "Your resume" (upload/paste, shows what was read + warnings); `/resume`
+  (gate, paste-a-JD, list with coverage/applied/letter, 24h spend); `/resume/[id]` (keyword panel
+  with confirm-and-regenerate, paper preview, wording-only editor, cover-letter tab, PDF/Word
+  downloads, regenerate/delete with armed confirm); "Tailor resume" in the match drawer and on
+  Jobs rows; Resume in the nav (iconsax `DocumentText`). "I applied" stamps the resume as sent.
+- **Rendering:** react-pdf (externalised from the server bundle) + `docx`; WinAnsi sanitizer, no
+  hyphenation. Download route checks the session itself and scopes the row to the user.
+- **Auth guard:** `actingUserId()` added beside `actingProfileId()`; `authorization.test.ts` now
+  accepts either — resume rows are user-owned. (Edited a security test: extended, not weakened —
+  every action must still name its principal.)
+
+**Result.** tsc, full lint clean; **395 tests** (33 new: lexicon/false positives, guards from real
+smoke failures, report, PDF+DOCX read-back incl. a hyphenation regression proven to fail without the
+fix). `resume:smoke` measured: parse $0.0023, requirements $0.0015, tailor $0.003–0.005, letter
+$0.002 — **~½¢ per tailored resume**. Two smoke runs drove four prompt/guard fixes (invented
+outcomes, tense, over-literal "missing", years-as-keyword). react-pdf proven inside the Next dev
+server via a dev-only route; UI verified at desktop and 375px. **Migration not yet applied to Neon.**
+
+**Files.** `drizzle/0010_resumes.sql`, `src/db/schema/resumes.ts`, `src/db/queries/{resumes,jobs,matches}.ts`,
+`src/lib/resume/*`, `src/pipeline/resume/*`, `src/app/(app)/resume/**`, `src/app/(app)/{profile,matches,today,jobs}/page.tsx`,
+`src/app/(app)/matches/actions.ts`, `src/components/resume/*`, `src/components/{match-drawer,matches-table,daily-queue,app-shell}.tsx`,
+`src/lib/{env,session}.ts`, `src/lib/llm/config.ts`, `next.config.ts`, `package.json`, docs

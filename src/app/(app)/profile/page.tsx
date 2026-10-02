@@ -3,7 +3,11 @@ import { UserRoundIcon } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { ProfileImporter } from "@/components/profile-importer";
+import { ResumeSourceCard, type MasterSummary } from "@/components/resume/resume-source-card";
+import { getCurrentMaster } from "@/db/queries/resumes";
 import { requireProfile } from "@/lib/session";
+
+const SAVED_FORMAT = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
 export const metadata: Metadata = {
   title: "Profile",
@@ -19,7 +23,25 @@ export const dynamic = "force-dynamic";
  * shape was never the problem; having no way to create it was.
  */
 export default async function ProfilePage() {
-  const { profile } = await requireProfile();
+  const { session, profile } = await requireProfile();
+  const masterRow = await getCurrentMaster(session.user.id);
+  const master: MasterSummary | null = masterRow
+    ? {
+        version: masterRow.version,
+        fileName: masterRow.sourceFileName,
+        savedLabel: SAVED_FORMAT.format(masterRow.createdAt),
+        name: masterRow.content.contact.name,
+        roles: masterRow.content.roles.map((r) => ({
+          title: r.title,
+          company: r.company,
+          dates: [r.start, r.current ? "Present" : r.end].filter(Boolean).join(" – "),
+          bullets: r.bullets.length,
+        })),
+        skills: masterRow.content.skills,
+        confirmedSkills: masterRow.content.confirmedSkills,
+        warnings: masterRow.warnings,
+      }
+    : null;
 
   return (
     <div className="space-y-8">
@@ -71,6 +93,8 @@ export default async function ProfilePage() {
           </ul>
         </section>
       ) : null}
+
+      <ResumeSourceCard master={master} />
 
       <ProfileImporter hasProfile={profile !== null} />
     </div>

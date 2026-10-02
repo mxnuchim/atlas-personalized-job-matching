@@ -69,9 +69,13 @@ describe("server actions cannot reach another user's rows", () => {
     actionFiles(join(SRC, "app"))
       .map((f) => relative(SRC, f))
       .filter((rel) => !(rel in NOT_USER_SCOPED)),
-  )("%s establishes the acting profile", (rel) => {
+  )("%s establishes the acting principal", (rel) => {
+    // `actingProfileId` for profile-owned rows (matches, drafts, outreach); `actingUserId`
+    // for user-owned ones (resumes, which outlive profile re-imports). Either way the
+    // owner is named by a helper, never read off the session ad hoc — and each pairs with
+    // `getOwned*` fetches, which is where the ownership is actually enforced.
     const contents = readFileSync(join(SRC, rel), "utf8");
-    expect(contents).toContain("actingProfileId");
+    expect(contents).toMatch(/\bactingProfileId\b|\bactingUserId\b/);
   });
 
   it.each(actionFiles(join(SRC, "app")).map((f) => relative(SRC, f)))(

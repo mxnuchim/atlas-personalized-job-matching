@@ -1,0 +1,31 @@
+Senior Platform Engineer — Infrastructure
+Acme Cloud (fictional) · Remote, Europe
+
+About the role
+You'll own the platform our 200 engineers deploy on: Kubernetes clusters on Amazon Web Services, the infrastructure as code that defines them, and the CI/CD pipelines that ship to them. You'll make the reliable path the easy path.
+
+What you'll do
+- Design, build and operate multi-region Kubernetes (EKS) infrastructure
+- Own our Terraform codebase and drive infrastructure-as-code standards
+- Build golden-path CI/CD with GitHub Actions and Argo CD
+- Define SLOs and improve observability with Prometheus, Grafana and OpenTelemetry
+- Lead incident response and blameless postmortems
+- Mentor engineers and raise the bar on reliability
+
+Required
+- 6+ years in platform, infrastructure or site reliability engineering
+- Deep experience with Kubernetes in production
+- Strong AWS experience (EKS, IAM, VPC networking)
+- Terraform at scale
+- Proficiency in Go or Python
+- CI/CD pipeline design
+- Observability: metrics, logging, tracing
+
+Nice to have
+- Argo CD or Flux (GitOps)
+- Service mesh experience (Istio, Linkerd)
+- Rust
+- PCI DSS or SOC 2 compliance experience
+- Certified Kubernetes Administrator (CKA)
+
+We offer remote-first work, learning budget, and equity. Acme Cloud is an equal opportunity employer.

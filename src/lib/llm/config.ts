@@ -26,6 +26,7 @@ export type LlmProvider = "anthropic" | "openai" | "google" | "groq" | "gateway"
 export const MODELS = {
   scoring: env.MODEL_SCORING,
   drafting: env.MODEL_DRAFTING,
+  resume: env.MODEL_RESUME,
 } as const;
 
 export const PROVIDER: LlmProvider = env.LLM_PROVIDER;

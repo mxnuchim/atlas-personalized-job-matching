@@ -73,6 +73,7 @@ Health check: `curl localhost:3000/api/health` → `{ "ok": true }`.
 | `npm run db:seed:profile` | Seed the profile, strengths and evidence |
 | `npm run db:seed:sources` | Seed the verified job-source catalogue |
 | `npm run pipeline:run` | Run the pipeline once against the configured database |
+| `npm run resume:smoke` | Resume pipeline end to end on a fictional fixture — real model calls, no DB writes, prints cost per step (`-- --job <id>` for a real posting) |
 
 ## Deploying
 

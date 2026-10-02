@@ -55,12 +55,13 @@ describe("resolveModel", () => {
 });
 
 describe("MODELS", () => {
-  it("reads both slots from env", async () => {
+  it("reads every slot from env", async () => {
     const { MODELS } = await loadConfig({
       MODEL_SCORING: "model-a",
       MODEL_DRAFTING: "model-b",
+      MODEL_RESUME: "model-c",
     });
-    expect(MODELS).toEqual({ scoring: "model-a", drafting: "model-b" });
+    expect(MODELS).toEqual({ scoring: "model-a", drafting: "model-b", resume: "model-c" });
   });
 
   it("falls back to the schema defaults", async () => {
@@ -68,6 +69,7 @@ describe("MODELS", () => {
     expect(PROVIDER).toBe("openai");
     expect(MODELS.scoring).toBe("gpt-5-mini");
     expect(MODELS.drafting).toBe("gpt-5-mini");
+    expect(MODELS.resume).toBe("gpt-5-mini");
   });
 });
 
