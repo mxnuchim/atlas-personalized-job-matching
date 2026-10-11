@@ -20,7 +20,7 @@ export const dailyPicks = pgTable(
       .notNull()
       .references(() => profile.id, { onDelete: "cascade" }),
     day: text().notNull(),
-    /** nigeria · global */
+    /** Always "global" since Today became one list; the column predates that (no migration). */
     lane: text().notNull(),
     matchId: uuid()
       .notNull()

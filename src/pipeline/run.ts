@@ -1,6 +1,6 @@
 import "server-only";
 
-import { currentQueueDay, todaysLanes } from "@/db/queries/daily";
+import { currentQueueDay, todaysPicks } from "@/db/queries/daily";
 import { getCurrentProfile, listProfileOwners } from "@/db/queries/profile";
 import { failRun, finishRun, runStatusFor, startRun, type RunTotals } from "@/db/queries/runs";
 import type { RunError } from "@/db/schema";
@@ -112,12 +112,9 @@ export async function runPipeline(
       if (!profile) continue;
       const owner = owners.find((o) => o.userId === entry.userId);
 
-      // The run sets the day's fixed picks (both lanes) from what it just scored, so the
-      // email lists exactly what Today will show — and Today never refills from here on.
-      const lanes = await todaysLanes(profile.id, currentQueueDay());
-      const queue = [...lanes.nigeria.remaining, ...lanes.global.remaining].sort(
-        (a, b) => b.overall - a.overall,
-      );
+      // The run sets the day's fixed picks from what it just scored, so the email lists
+      // exactly what Today will show — and Today never refills from here on.
+      const queue = (await todaysPicks(profile.id, currentQueueDay())).remaining;
       const result = await notifyRun({
         to: owner?.email,
         newJobs: ingest.inserted,

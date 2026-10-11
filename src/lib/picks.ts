@@ -1,5 +1,3 @@
-import type { Lane } from "./lanes";
-import { laneOf } from "./lanes";
 import { capPerCompany } from "./queue";
 
 /**
@@ -20,8 +18,9 @@ import { capPerCompany } from "./queue";
  * Then near-duplicate titles at one employer collapse to the best (three variants of
  * "Backend Engineer" at one company are one application), and at most two per employer.
  *
- * Calibrated on real data (2026-10-11): the Global lane went from 4 visa/location
- * mismatches in its top 20 to none, every pick at location fit ≥ 85.
+ * Calibrated on real data (2026-10-11): the top 20 went from 4 visa/location mismatches
+ * to none, every pick at location fit ≥ 85. One list, wherever the role is: a Lagos role
+ * competes with a remote-EU one on the same score.
  *
  * Pure and client-safe — tested directly in `picks.test.ts`.
  */
@@ -105,16 +104,15 @@ export function isNearDuplicate(a: PickCandidate, b: PickCandidate): boolean {
   );
 }
 
-/** The lane's picks, best first: gate, rank, collapse near-duplicates, cap per employer. */
-export function selectLane<T extends PickCandidate>(
+/** The day's picks, best first: gate, rank, collapse near-duplicates, cap per employer. */
+export function selectPicks<T extends PickCandidate>(
   candidates: T[],
-  lane: Lane,
   size: number,
   maxPerCompany: number,
   now: Date = new Date(),
 ): T[] {
   const ranked = candidates
-    .filter((c) => laneOf(c.location) === lane && isPickable(c))
+    .filter(isPickable)
     .map((c) => ({ c, score: pickScore(c, now) }))
     .sort((a, b) => b.score - a.score || b.c.overall - a.c.overall)
     .map(({ c }) => c);
@@ -122,5 +120,5 @@ export function selectLane<T extends PickCandidate>(
   const distinct: T[] = [];
   for (const c of ranked) if (!distinct.some((kept) => isNearDuplicate(kept, c))) distinct.push(c);
 
-  return capPerCompany(distinct, size, maxPerCompany, { fill: true });
+  return capPerCompany(distinct, size, maxPerCompany);
 }

@@ -2331,3 +2331,29 @@ Designer just misses (seniority 65) — the gate to lower if stretch roles are w
 
 **Files.** `src/lib/picks.ts`, `src/lib/picks.test.ts`, `src/db/queries/daily.ts`, `src/lib/env.ts`,
 `src/lib/env.test.ts`, `src/app/(app)/today/page.tsx`, `.github/workflows/pipeline.yml`, `.env.example`, docs
+
+---
+
+## 2026-10-11 12:45 — Today: one list, no Nigeria lane
+
+**Context.** With Nigerian sources dropped, a separate Nigeria lane had nothing to grow from (4
+Moniepoint roles). Oliver: keep it global, keep the "x left" progress.
+
+**Action.**
+- Removed `lib/lanes.ts` (+ tests; the `queueDay` test moved to `schedule.test.ts`) and
+  `DAILY_NIGERIA_SIZE` (env, workflow, .env.example). `selectLane` → `selectPicks`, no lane filter:
+  Nigerian roles now compete in the one list on merit.
+- `capPerCompany` lost its `fill` option — it existed only so a one-employer Nigeria lane could fill.
+- `daily.ts`: `todaysLanes` → `todaysPicks`, `readLane` → `readPicks`. Rows still written with
+  `lane = "global"` — no migration, and a day picked before this deploy reads back unchanged.
+- Today: tabs gone; the progress bar reads "N jobs left · x of y done" and updates optimistically;
+  stat strip shows Left today / Strong matches / Postings tracked. Run email lists the one set.
+
+**Result.** 405 tests (6 lane/fill tests removed with their code, 1 added). Dry run identical to the
+old Global list — Manuchim 20 picks / 17 companies, Alabi 11; no Moniepoint role beat the top 20.
+
+**Files.** `src/lib/{picks,queue,env,schedule.test}.ts`, `src/lib/picks.test.ts`, removed
+`src/lib/lanes{,.test}.ts`, `src/db/queries/daily.ts`, `src/db/schema/daily-picks.ts`,
+`src/app/(app)/today/page.tsx`, `src/components/daily-queue.tsx`, `src/pipeline/run.ts`,
+`.github/workflows/pipeline.yml`, `.env.example`, docs
+

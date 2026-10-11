@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { cronExpression, nextRunLabel, runHoursUtc, RUN_HOURS } from "./schedule";
+import { cronExpression, nextRunLabel, queueDay, runHoursUtc, RUN_HOURS } from "./schedule";
 
 describe("nextRunLabel", () => {
   const at = (hourUtc: number) => new Date(Date.UTC(2026, 0, 15, hourUtc, 30));
@@ -61,5 +61,16 @@ describe("the committed cron matches the configured schedule", () => {
     // The cadence is a product decision — a person can apply to ten or twenty roles
     // a day, so a second run adds cost and noise without adding anything actionable.
     expect(RUN_HOURS).toHaveLength(1);
+  });
+});
+
+describe("queueDay", () => {
+  // The run is at 06:00; a queue day starts there, not at midnight.
+  it("rolls over at the run hour in the configured zone", () => {
+    expect(queueDay(new Date("2026-10-11T05:59:00Z"), "UTC")).toBe("2026-10-10");
+    expect(queueDay(new Date("2026-10-11T06:00:00Z"), "UTC")).toBe("2026-10-11");
+    // Lagos is UTC+1: 05:30 UTC is 06:30 there — already the new day.
+    expect(queueDay(new Date("2026-10-11T05:30:00Z"), "Africa/Lagos")).toBe("2026-10-11");
+    expect(queueDay(new Date("2026-10-11T04:30:00Z"), "Africa/Lagos")).toBe("2026-10-10");
   });
 });

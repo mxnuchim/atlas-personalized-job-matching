@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { hasHardNo, isNearDuplicate, isPickable, pickScore, selectLane, type PickCandidate } from "./picks";
+import { hasHardNo, isNearDuplicate, isPickable, pickScore, selectPicks, type PickCandidate } from "./picks";
 
 const NOW = new Date("2026-10-11T12:00:00Z");
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
@@ -70,7 +70,7 @@ describe("isNearDuplicate", () => {
   });
 });
 
-describe("selectLane", () => {
+describe("selectPicks", () => {
   it("gates, ranks, collapses duplicates and caps at two per employer", () => {
     const pool = [
       c({ company: "Wheely", title: "Senior Backend Engineer", overall: 88 }),
@@ -79,21 +79,20 @@ describe("selectLane", () => {
       c({ company: "Stripe", title: "Frontend Engineer, Expansion", overall: 89 }),
       c({ company: "Stripe", title: "Full Stack Engineer, Web Presence", overall: 89 }),
       c({ company: "Vercel", title: "Software Engineer, AI Gateway", overall: 89, loc: 60 }),
-      c({ company: "Moniepoint", title: "Platform Engineer", location: "Remote, Lagos, Nigeria" }),
     ];
-    // Three slots: enough for the cap, not the fill, to decide (fill has its own test).
-    const picked = selectLane(pool, "global", 3, 2, NOW);
+    const picked = selectPicks(pool, 10, 2, NOW);
     const companies = picked.map((p) => p.company);
     expect(companies.filter((x) => x === "Wheely")).toHaveLength(1);
     expect(companies.filter((x) => x === "Stripe")).toHaveLength(2);
     expect(companies).not.toContain("Vercel");
-    expect(companies).not.toContain("Moniepoint");
+    expect(picked).toHaveLength(3);
   });
 
-  it("still fills a lane that has only one employer", () => {
-    const pool = ["Platform", "Mobile Architect", "Data", "Security"].map((t) =>
-      c({ company: "Moniepoint", title: `${t} Engineer`, location: "Lagos, Nigeria" }),
-    );
-    expect(selectLane(pool, "nigeria", 10, 2, NOW)).toHaveLength(4);
+  it("is one list wherever the role is — a Lagos role competes on the same score", () => {
+    const pool = [
+      c({ company: "Moniepoint", title: "Platform Engineer", location: "Lagos, Nigeria", overall: 90 }),
+      c({ company: "Monzo", title: "Platform Engineer", location: "Remote, UK", overall: 87 }),
+    ];
+    expect(selectPicks(pool, 10, 2, NOW).map((p) => p.company)).toEqual(["Moniepoint", "Monzo"]);
   });
 });

@@ -13,10 +13,9 @@ import { FitGauge } from "@/components/fit-gauge";
 import { MatchDrawer } from "@/components/match-drawer";
 import { TierChip } from "@/components/tier-chip";
 import type { MatchRow } from "@/db/queries/matches";
-import { LANE_LABELS, type Lane } from "@/lib/lanes";
 
 /**
- * One lane of the day's queue — a fixed list you are meant to finish.
+ * The day's queue — a fixed list you are meant to finish.
  *
  * The whole point is that it ends. The set is chosen once each morning (`daily_picks`);
  * acting on a role removes it here and counts as progress — it never pulls the next
@@ -26,19 +25,17 @@ import { LANE_LABELS, type Lane } from "@/lib/lanes";
 export function DailyQueue({
   matches,
   strengthLabels,
-  lane,
   done,
   total,
   nextRun,
   resumeReady = false,
 }: {
-  /** The lane's picks not yet acted on, in pick order. */
+  /** The day's picks not yet acted on, in pick order. */
   matches: MatchRow[];
   strengthLabels: Record<string, string>;
-  lane: Lane;
   /** Acted on earlier today (server count). */
   done: number;
-  /** The day's set for this lane. */
+  /** The day's set. */
   total: number;
   /** When the next set arrives, e.g. "06:00". */
   nextRun: string;
@@ -74,7 +71,7 @@ export function DailyQueue({
         <Progress done={doneNow} total={total} />
         <div className="rounded-xl border px-5 py-8 text-center">
           <p className="font-medium">
-            That&rsquo;s today&rsquo;s {total} {LANE_LABELS[lane]} {total === 1 ? "role" : "roles"} done.
+            That&rsquo;s today&rsquo;s {total} {total === 1 ? "role" : "roles"} done.
           </p>
           <p className="text-muted-foreground mt-1 text-sm">A new set arrives at {nextRun}. Nothing more until then.</p>
         </div>
@@ -174,9 +171,11 @@ function Progress({ done, total }: { done: number; total: number }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between text-sm">
-        <span className="text-muted-foreground">Done today</span>
         <span className="font-medium tabular-nums">
-          {done} of {total}
+          {total - done} {total - done === 1 ? "job" : "jobs"} left
+        </span>
+        <span className="text-muted-foreground tabular-nums">
+          {done} of {total} done
         </span>
       </div>
       <div

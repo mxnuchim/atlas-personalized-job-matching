@@ -337,7 +337,7 @@ a row in `users` rather than a rewrite.
   an owner; `strengths`, `matches` and, through matches, `drafts` and `outreach`
   inherit it transitively. No table carries a duplicated `user_id` that can drift.
 - **An owner parameter is required, never optional.** `getCurrentProfile(userId)`,
-  `todaysLanes(profileId, …)`, `getMatchCounts(profileId)`. An optional owner is how
+  `todaysPicks(profileId, …)`, `getMatchCounts(profileId)`. An optional owner is how
   "whose data is this?" becomes a question nobody asks — the first caller that omits it
   silently reads whichever profile sorts first, and that bug is invisible until there
   are two users.
@@ -473,29 +473,28 @@ click; the armed state disarms itself after 4s.
 against `RESUME_DAILY_LIMIT` and its dollars. Measured: ~½¢ per tailored resume, ¼¢ once per
 upload, ~0.2¢ per letter.
 
-## 10f. Today: two fixed lanes
+## 10f. Today: one fixed list
 
-Today is two lists you can finish, not a feed. **Nigeria** (`DAILY_NIGERIA_SIZE`, 10) and
-**Global** (`DAILY_QUEUE_SIZE`, 20), each chosen **once per queue day** and stored in
-`daily_picks`; acting on a role is progress against the set, never a trigger for the next.
+Today is a list you can finish, not a feed: `DAILY_QUEUE_SIZE` (20) roles, chosen **once per
+queue day** and stored in `daily_picks`; acting on a role is progress against the set, never a
+trigger for the next.
 
 - **The day starts at the run hour** (`queueDay`), not midnight — the morning run builds the
   picks from what it just scored, and the email lists exactly those. First view of the day
   builds them if the run hasn't; an advisory lock stops the two picking twice.
-- **"The very best" means roles you can get** (`selectLane`, lib/picks.ts). Strong/possible
+- **"The very best" means roles you can get** (`selectPicks`, lib/picks.ts). Strong/possible
   only; role, seniority and location fit each ≥ 70; sponsorship stated as unavailable excludes.
   Ranked by a pick score — 0.60·overall + 0.25·location + 0.15·seniority + freshness — because
   the model's overall alone rated location-60 roles at 89. Near-duplicate titles at one
-  employer collapse; at most `MAX_PER_COMPANY` (2) per employer, with `fill` so a one-employer
-  lane still fills. A lane shows fewer than its size rather than padding.
+  employer collapse; at most `MAX_PER_COMPANY` (2) per employer, a hard cap. The list shows
+  fewer than its size rather than padding.
+- **One list, wherever the role is.** A Lagos role competes with a remote-EU one on the same
+  score. (Today briefly had separate Nigeria and Global lanes; dropped with the Nigerian-sources
+  idea. `daily_picks.lane` survives, always `"global"`, so no migration was needed.)
 - **Never exclude on the word "dealbreaker".** The model writes it for ~45% of roles, mostly
   hedged; only explicit "does not sponsor"-style statements are hard exclusions.
-- **Lane = location**, Unicode word boundaries (`laneOf`): a role is Nigerian when it names
-  Nigeria or a Nigerian city, including multi-country remote roles that list Nigeria. EMEA or
-  "Remote — Africa" is global — it might include Nigeria, but the posting hasn't said so.
-- **Progress lives in the client island**, so "Done today · 3 of 10" moves the instant you act
-  (optimistic), and the finished state says when the next set arrives.
-- Tabs are links (`?lane=`); the page opens on Nigeria while it has work left, else Global.
+- **Progress lives in the client island**, so "7 jobs left · 3 of 10 done" moves the instant
+  you act (optimistic), and the finished state says when the next set arrives.
 
 ## 11. Open items
 
