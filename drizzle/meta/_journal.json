@@ -78,6 +78,13 @@
       "when": 1790929297428,
       "tag": "0010_resumes",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791710600950,
+      "tag": "0011_daily_picks",
+      "breakpoints": true
     }
   ]
 }

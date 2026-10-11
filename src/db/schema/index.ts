@@ -15,3 +15,4 @@ export * from "./drafts";
 export * from "./outreach";
 export * from "./runs";
 export * from "./resumes";
+export * from "./daily-picks";

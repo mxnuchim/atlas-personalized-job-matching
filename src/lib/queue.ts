@@ -19,11 +19,16 @@ export type Capped = { company: string };
  * Input must already be in the order you want (best first). Rows beyond an employer's
  * cap are dropped rather than deferred — the queue refills tomorrow, and holding a
  * position for a company you have already seen four times is not worth the slot.
+ *
+ * `fill`: when the cap would leave slots empty, top them up with the best rows it
+ * skipped. Diversity is a preference, not a reason to show fewer roles than exist — the
+ * Nigeria lane is almost all one employer, and a hard cap of 4 would show 4 of its 10.
  */
 export function capPerCompany<T extends Capped>(
   rows: T[],
   limit: number,
   maxPerCompany: number,
+  { fill = false }: { fill?: boolean } = {},
 ): T[] {
   const seen = new Map<string, number>();
   const chosen: T[] = [];
@@ -38,6 +43,14 @@ export function capPerCompany<T extends Capped>(
 
     seen.set(key, count + 1);
     chosen.push(row);
+  }
+
+  if (fill && chosen.length < limit) {
+    const taken = new Set(chosen);
+    // Back into rank order, so a topped-up row sits where its score puts it.
+    const extra = rows.filter((r) => !taken.has(r)).slice(0, limit - chosen.length);
+    const keep = new Set([...chosen, ...extra]);
+    return rows.filter((r) => keep.has(r));
   }
 
   return chosen;

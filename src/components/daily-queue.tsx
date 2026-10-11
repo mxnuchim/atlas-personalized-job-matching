@@ -13,25 +13,35 @@ import { FitGauge } from "@/components/fit-gauge";
 import { MatchDrawer } from "@/components/match-drawer";
 import { TierChip } from "@/components/tier-chip";
 import type { MatchRow } from "@/db/queries/matches";
+import { LANE_LABELS, type Lane } from "@/lib/lanes";
 
 /**
- * The day's queue — a short list you are meant to finish.
+ * One lane of the day's queue — a fixed list you are meant to finish.
  *
- * The whole point is that it empties. Acting on a role removes it here and moves it
- * in the tracker, so tomorrow's queue is new rather than the same four hundred rows
- * with the top four changed. A list nobody can finish gets skimmed and then ignored,
- * which is the failure this screen exists to avoid.
+ * The whole point is that it ends. The set is chosen once each morning (`daily_picks`);
+ * acting on a role removes it here and counts as progress — it never pulls the next
+ * one in. A list that refills as you work is a list you can't finish, which is the
+ * failure this screen exists to avoid.
  */
 export function DailyQueue({
   matches,
   strengthLabels,
-  waiting,
+  lane,
+  done,
+  total,
+  nextRun,
   resumeReady = false,
 }: {
+  /** The lane's picks not yet acted on, in pick order. */
   matches: MatchRow[];
   strengthLabels: Record<string, string>;
-  /** Total unacted matches, so the queue can say what it is holding back. */
-  waiting: number;
+  lane: Lane;
+  /** Acted on earlier today (server count). */
+  done: number;
+  /** The day's set for this lane. */
+  total: number;
+  /** When the next set arrives, e.g. "06:00". */
+  nextRun: string;
   /** Whether you have a resume on file — gates "Tailor resume" in the drawer. */
   resumeReady?: boolean;
 }) {
@@ -42,9 +52,9 @@ export function DailyQueue({
   const [open, setOpen] = useState<MatchRow | null>(null);
   // Removing on click keeps the queue feeling like a list you are clearing, rather
   // than one that reshuffles under you after a round trip.
-  const [done, act] = useOptimistic<string[], string>([], (ids, id) => [...ids, id]);
+  const [actedIds, act] = useOptimistic<string[], string>([], (ids, id) => [...ids, id]);
 
-  const visible = matches.filter((m) => !done.includes(m.id));
+  const visible = matches.filter((m) => !actedIds.includes(m.id));
 
   function run(match: MatchRow, action: (i: unknown) => Promise<ActionResult>, verb: string) {
     startTransition(async () => {
@@ -55,22 +65,27 @@ export function DailyQueue({
     });
   }
 
+  // Progress counts optimistic removals too, so the bar moves the instant you act.
+  const doneNow = done + (matches.length - visible.length);
+
   if (visible.length === 0) {
     return (
-      <div className="rounded-xl border px-5 py-8 text-center">
-        <p className="font-medium">That&rsquo;s the queue cleared.</p>
-        <p className="text-muted-foreground mt-1 text-sm">
-          {waiting > visible.length
-            ? "More are waiting — they will be here tomorrow, or fetch now above."
-            : "Nothing else is waiting. The next run brings more."}
-        </p>
+      <div className="space-y-4">
+        <Progress done={doneNow} total={total} />
+        <div className="rounded-xl border px-5 py-8 text-center">
+          <p className="font-medium">
+            That&rsquo;s today&rsquo;s {total} {LANE_LABELS[lane]} {total === 1 ? "role" : "roles"} done.
+          </p>
+          <p className="text-muted-foreground mt-1 text-sm">A new set arrives at {nextRun}. Nothing more until then.</p>
+        </div>
       </div>
     );
   }
 
   return (
     <>
-      <ul className="divide-border overflow-hidden rounded-xl border">
+      <Progress done={doneNow} total={total} />
+      <ul className="divide-border mt-4 overflow-hidden rounded-xl border">
         {visible.map((match) => (
           <li key={match.id} className="flex items-start gap-4 border-b px-5 py-4 last:border-b-0">
             <button
@@ -150,5 +165,33 @@ export function DailyQueue({
         }}
       />
     </>
+  );
+}
+
+/** How far through the day's set you are — the reason the list is finite. */
+function Progress({ done, total }: { done: number; total: number }) {
+  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between text-sm">
+        <span className="text-muted-foreground">Done today</span>
+        <span className="font-medium tabular-nums">
+          {done} of {total}
+        </span>
+      </div>
+      <div
+        className="bg-muted h-1.5 overflow-hidden rounded-full"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={done}
+        aria-label="Roles done today"
+      >
+        <div
+          className="bg-primary/70 h-full rounded-full transition-[width] duration-(--duration-slow) ease-(--ease-emphasized)"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
   );
 }

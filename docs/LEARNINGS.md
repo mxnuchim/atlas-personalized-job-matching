@@ -1369,3 +1369,19 @@ double-submit protection it needs.
 
 **Rule.** A `pending` flag is scoped to its hook, not to the thing you clicked. For per-item actions,
 guard per item (optimistic removal, or a set of in-flight ids) — never with the list's flag.
+
+---
+
+## 2026-10-11 — Place names need Unicode word boundaries, and checking them against real data
+
+**Problem.** The first Nigeria filter put an Adyen role in "São José dos Campos" (Brazil) in the
+Nigeria lane.
+
+**Root cause.** "Jos" — a Nigerian city — matched inside "José". Substring matching (and `\b`, which
+treats "é" as a boundary in many engines) can't tell a city from a fragment of another word.
+
+**Fix.** `(?<![\p{L}\p{N}])…(?![\p{L}\p{N}])` with the `u` flag, in JS rather than Postgres (whose word
+boundaries depend on the server locale). Pinned by a test using the real location string.
+
+**Rule.** Any filter over free-text places: Unicode-aware boundaries, and run it over the real column
+before trusting it — the false positive was in the first 10 rows of output.

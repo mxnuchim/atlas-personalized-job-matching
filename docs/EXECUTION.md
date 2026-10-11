@@ -2242,3 +2242,38 @@ other rows' buttons are `disabled: false`; 30 ms after "I applied" in the drawer
 closed and that role is out of the list. tsc, lint clean; 395 tests.
 
 **Files.** `src/components/{daily-queue,match-drawer,matches-table}.tsx`, `src/app/(app)/matches/actions.ts`
+
+---
+
+## 2026-10-11 — Today: two fixed daily lanes (Nigeria 10 · Global 20), no refills
+
+**Context.** Oliver couldn't stay consistent: Today recomputed "best N unacted" on every load,
+so each role he finished pulled the next one in — a list that never ends. He wanted two tabs,
+Nigerian roles (10) and global roles (20), the very best of each, and nothing more.
+
+**Action.**
+- `daily_picks` (migration `0011`, additive): the day's set per profile, lane and queue day.
+  `ensureDailyPicks` chooses once (advisory-locked); `readLane` returns remaining + progress.
+- `queueDay()` (schedule.ts): the day starts at the run hour, not midnight. The morning run now
+  builds the picks after scoring and the email reports them, so email and page agree.
+- `laneOf()` (lib/lanes.ts): Nigeria by location with Unicode word boundaries — the first naive
+  filter put Adyen's "São José dos Campos" in Nigeria via "Jos".
+- Selection: best fit first, stretch excluded, `capPerCompany(…, { fill: true })` so variety never
+  leaves a slot empty. `DAILY_NIGERIA_SIZE` (10) added; `DAILY_QUEUE_SIZE` (20) is Global.
+- Today page: lane tabs (`?lane=`, "N left"), stat strip per lane, honest empty states.
+  `DailyQueue`: optimistic "Done today · X of N" progress; finished state names the next run.
+- Removed `listDailyQueue` / `countDailyQueue` (no callers left).
+
+**Result.** tsc, lint clean; **402 tests** (7 new: lanes incl. the José false positive, queue-day
+rollover in UTC and Lagos, cap fill). Dry run on Manuchim's real data: **Global 20/20**, all strong
+(88-90), 15 companies; **Nigeria 5/10** — every eligible Nigerian role, all Moniepoint "possible"
+(78-84). Verified in a dev preview: ticking a role moves progress 1→2 of 4 within 30 ms, the row
+leaves, nothing replaces it.
+
+**Supply finding.** Of Nigerian employers probed on Greenhouse/Lever/Ashby, only **Moniepoint**
+publishes there (152 open, 68 in Nigeria — mostly non-engineering, hence 12 matches). Paystack,
+Flutterwave, Kuda, PiggyVest etc. use other systems; a fuller Nigeria lane needs a new source type.
+
+**Files.** `src/lib/{lanes,queue,schedule,env}.ts`, `src/lib/lanes.test.ts`, `src/db/schema/daily-picks.ts`,
+`drizzle/0011_daily_picks.sql`, `src/db/queries/{daily,matches}.ts`, `src/app/(app)/today/page.tsx`,
+`src/components/daily-queue.tsx`, `src/pipeline/run.ts`, `.github/workflows/pipeline.yml`, `.env.example`, docs

@@ -45,3 +45,21 @@ function utcOffsetHours(timeZone: string, on: Date): number {
   const asLocal = new Date(on.toLocaleString("en-US", { timeZone }));
   return Math.round((asLocal.getTime() - asUtc.getTime()) / 3_600_000);
 }
+
+/**
+ * The queue day an instant belongs to, as `YYYY-MM-DD` in the given zone.
+ *
+ * A day starts at the first run, not at midnight: the day's picks should be built from
+ * that morning's run, so opening Today at 00:30 (or 05:59) still shows yesterday's set
+ * rather than locking today's in before the run has scored anything new.
+ */
+export function queueDay(now: Date = new Date(), timeZone = "UTC"): string {
+  const shifted = new Date(now.getTime() - RUN_HOURS[0] * 3_600_000);
+  // en-CA formats as YYYY-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(shifted);
+}

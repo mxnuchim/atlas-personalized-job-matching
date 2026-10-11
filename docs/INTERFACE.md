@@ -337,7 +337,7 @@ a row in `users` rather than a rewrite.
   an owner; `strengths`, `matches` and, through matches, `drafts` and `outreach`
   inherit it transitively. No table carries a duplicated `user_id` that can drift.
 - **An owner parameter is required, never optional.** `getCurrentProfile(userId)`,
-  `listDailyQueue(profileId, …)`, `getMatchCounts(profileId)`. An optional owner is how
+  `todaysLanes(profileId, …)`, `getMatchCounts(profileId)`. An optional owner is how
   "whose data is this?" becomes a question nobody asks — the first caller that omits it
   silently reads whichever profile sorts first, and that bug is invisible until there
   are two users.
@@ -472,6 +472,25 @@ click; the armed state disarms itself after 4s.
 **Cost is visible.** Each resume shows what it cost; the Resume page shows the rolling-24h count
 against `RESUME_DAILY_LIMIT` and its dollars. Measured: ~½¢ per tailored resume, ¼¢ once per
 upload, ~0.2¢ per letter.
+
+## 10f. Today: two fixed lanes
+
+Today is two lists you can finish, not a feed. **Nigeria** (`DAILY_NIGERIA_SIZE`, 10) and
+**Global** (`DAILY_QUEUE_SIZE`, 20), each chosen **once per queue day** and stored in
+`daily_picks`; acting on a role is progress against the set, never a trigger for the next.
+
+- **The day starts at the run hour** (`queueDay`), not midnight — the morning run builds the
+  picks from what it just scored, and the email lists exactly those. First view of the day
+  builds them if the run hasn't; an advisory lock stops the two picking twice.
+- **"The very best", literally**: best fit first, stretch-tier excluded, variety across
+  employers preferred but never at the cost of an empty slot (`capPerCompany` `fill`). A lane
+  shows fewer than its size rather than padding — "5 of 10" with all 5 good beats 10 with 5 weak.
+- **Lane = location**, Unicode word boundaries (`laneOf`): a role is Nigerian when it names
+  Nigeria or a Nigerian city, including multi-country remote roles that list Nigeria. EMEA or
+  "Remote — Africa" is global — it might include Nigeria, but the posting hasn't said so.
+- **Progress lives in the client island**, so "Done today · 3 of 10" moves the instant you act
+  (optimistic), and the finished state says when the next set arrives.
+- Tabs are links (`?lane=`); the page opens on Nigeria while it has work left, else Global.
 
 ## 11. Open items
 

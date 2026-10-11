@@ -4,14 +4,12 @@ import { db } from "@/db";
 import {
   jobs,
   matches,
-  outreach,
   type FitDimensions,
   type Job,
   type Match,
   type StrengthMatch,
 } from "@/db/schema";
 import { isStale, relativeAge } from "@/lib/age";
-import { capPerCompany } from "@/lib/queue";
 import { extractContact } from "@/lib/contact";
 import { htmlToText } from "@/lib/html";
 import { clampPage, offsetOf, paginated, type PageParams, type Paginated } from "@/lib/pagination";
@@ -231,7 +229,7 @@ function orderFor(sort: MatchSort, dir: "asc" | "desc") {
 }
 
 /** One place that turns a (match, job) pair into what the UI renders. */
-function toMatchRow(m: Match, j: Job, now: Date): MatchRow {
+export function toMatchRow(m: Match, j: Job, now: Date): MatchRow {
   {
     const text = htmlToText(j.description ?? "");
     const contact = extractContact(text);
@@ -263,64 +261,6 @@ function toMatchRow(m: Match, j: Job, now: Date): MatchRow {
       descriptionTruncated: text.length > MAX_DESCRIPTION_CHARS,
     };
   }
-}
-
-/**
- * The day's queue: the best matches you have not yet acted on.
- *
- * Capped on purpose. The constraint is how many roles a person can apply to in a day —
- * ten or twenty — not how many exist, and a list of four hundred is the same as no
- * list at all. Acting on one removes it, so tomorrow's queue is genuinely new.
- *
- * "Not acted on" means no outreach row, or one still at `drafted`. Anything sent,
- * closed or further along has been dealt with and does not come back.
- */
-export async function listDailyQueue(
-  profileId: string,
-  limit: number,
-  maxPerCompany: number,
-): Promise<MatchRow[]> {
-  // Fetch a pool rather than exactly `limit`: the per-company cap can only choose from
-  // what it is given, so asking for 20 and then capping would return fewer than 20
-  // whenever one employer dominates the top. Bounded, so a pathological corpus
-  // degrades to "fewer than asked for" rather than loading everything.
-  const pool = Math.min(limit * maxPerCompany * 10, 600);
-
-  const rows = await db
-    .select({ matches, jobs })
-    .from(matches)
-    .innerJoin(jobs, eq(matches.jobId, jobs.id))
-    .leftJoin(outreach, eq(outreach.matchId, matches.id))
-    .where(
-      and(
-        eq(matches.profileId, profileId),
-        isNull(jobs.closedAt),
-        or(isNull(outreach.id), eq(outreach.status, "drafted")),
-      ),
-    )
-    .orderBy(desc(matches.overall), desc(matches.scoredAt))
-    .limit(pool);
-
-  const now = new Date();
-  const candidates = rows.map(({ matches: m, jobs: j }) => toMatchRow(m, j, now));
-  return capPerCompany(candidates, limit, maxPerCompany);
-}
-
-/** How many matches are waiting, so the queue can say what it is holding back. */
-export async function countDailyQueue(profileId: string): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(matches)
-    .innerJoin(jobs, eq(matches.jobId, jobs.id))
-    .leftJoin(outreach, eq(outreach.matchId, matches.id))
-    .where(
-      and(
-        eq(matches.profileId, profileId),
-        isNull(jobs.closedAt),
-        or(isNull(outreach.id), eq(outreach.status, "drafted")),
-      ),
-    );
-  return row?.count ?? 0;
 }
 
 /** Counts for the Today strip, done in SQL rather than by loading every row. */

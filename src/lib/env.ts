@@ -92,13 +92,15 @@ const envSchema = z.object({
   LOGIN_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
 
   /**
-   * How many roles the day's queue offers at once, and at most how many may come from
-   * any one employer.
+   * The day's two fixed lists (see `daily_picks`): the Global lane takes
+   * `DAILY_QUEUE_SIZE`, the Nigeria lane `DAILY_NIGERIA_SIZE`. Each is picked once a day
+   * and never refills — finishing a role is progress, not a trigger for the next one.
    *
    * The limit is how many a person can actually apply to in a day, not how many exist.
    * The ceiling of 30 is deliberate: a cap you can raise without limit is not a cap.
    */
   DAILY_QUEUE_SIZE: z.coerce.number().int().min(5).max(30).default(20),
+  DAILY_NIGERIA_SIZE: z.coerce.number().int().min(1).max(30).default(10),
   /**
    * Sorting purely by fit let one employer take a third of the queue — four
    * consecutive roles at the same company, all genuinely strong. Fifteen roles at
