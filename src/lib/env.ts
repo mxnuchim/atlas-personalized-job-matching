@@ -104,9 +104,11 @@ const envSchema = z.object({
   /**
    * Sorting purely by fit let one employer take a third of the queue — four
    * consecutive roles at the same company, all genuinely strong. Fifteen roles at
-   * eleven companies is a better day's work than fifteen at four.
+   * eleven companies is a better day's work than fifteen at four. Two, not four, since
+   * the picks became "the very best": a third application to one employer is rarely
+   * worth a slot. (A lane with only one employer still fills — see `capPerCompany`.)
    */
-  MAX_PER_COMPANY: z.coerce.number().int().min(1).max(10).default(4),
+  MAX_PER_COMPANY: z.coerce.number().int().min(1).max(10).default(2),
 
   /**
    * Postings older than this never enter the corpus. A board returns every open

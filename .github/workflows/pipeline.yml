@@ -107,7 +107,7 @@ jobs:
           MODEL_DRAFTING: ${{ vars.MODEL_DRAFTING || 'gpt-5-mini' }}
           DAILY_QUEUE_SIZE: ${{ vars.DAILY_QUEUE_SIZE || '20' }}
           DAILY_NIGERIA_SIZE: ${{ vars.DAILY_NIGERIA_SIZE || '10' }}
-          MAX_PER_COMPANY: ${{ vars.MAX_PER_COMPANY || '4' }}
+          MAX_PER_COMPANY: ${{ vars.MAX_PER_COMPANY || '2' }}
           MAX_POSTING_AGE_DAYS: ${{ vars.MAX_POSTING_AGE_DAYS || '30' }}
           APP_TZ: ${{ vars.APP_TZ || 'UTC' }}
           LOG_LEVEL: info

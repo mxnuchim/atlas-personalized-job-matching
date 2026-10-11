@@ -3,8 +3,8 @@ import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { dailyPicks, jobs, matches, outreach } from "@/db/schema";
 import { env } from "@/lib/env";
-import { laneOf, LANES, type Lane } from "@/lib/lanes";
-import { capPerCompany } from "@/lib/queue";
+import { LANES, type Lane } from "@/lib/lanes";
+import { selectLane } from "@/lib/picks";
 import { queueDay } from "@/lib/schedule";
 
 import { toMatchRow, type MatchRow } from "./matches";
@@ -12,9 +12,9 @@ import { toMatchRow, type MatchRow } from "./matches";
 /**
  * Today's two fixed lists (see `daily_picks`). Chosen once per queue day per lane, then
  * only read: acting on a role is progress against the day's set, never a reason to load
- * another. A lane picks the best roles by fit, skips stretch-tier ones (the brief is "the
- * very best", not "something to fill the slot"), and prefers variety across employers
- * without leaving slots empty for it.
+ * another. Which roles make it is `selectLane` (lib/picks.ts): strong/possible only, gated
+ * on role, seniority and location fit, ranked by a feasibility-weighted pick score, near-
+ * duplicates collapsed, at most `MAX_PER_COMPANY` per employer.
  */
 
 export function laneSize(lane: Lane): number {
@@ -44,7 +44,16 @@ export async function ensureDailyPicks(profileId: string, day: string): Promise<
 
     // Light rows only — the full posting is read for the ~30 picked, not ~1,000 candidates.
     const candidates = await tx
-      .select({ id: matches.id, company: jobs.company, location: jobs.location })
+      .select({
+        id: matches.id,
+        company: jobs.company,
+        title: jobs.title,
+        location: jobs.location,
+        overall: matches.overall,
+        dimensions: matches.dimensions,
+        redFlags: matches.redFlags,
+        postedAt: jobs.postedAt,
+      })
       .from(matches)
       .innerJoin(jobs, eq(matches.jobId, jobs.id))
       .leftJoin(outreach, eq(outreach.matchId, matches.id))
@@ -56,11 +65,10 @@ export async function ensureDailyPicks(profileId: string, day: string): Promise<
           unacted,
         ),
       )
-      .orderBy(desc(matches.overall), desc(matches.scoredAt));
+      .orderBy(desc(matches.overall), desc(matches.scoredAt)); // stable input; selectLane ranks
 
     for (const lane of missing) {
-      const inLane = candidates.filter((c) => laneOf(c.location) === lane);
-      const picked = capPerCompany(inLane, laneSize(lane), env.MAX_PER_COMPANY, { fill: true });
+      const picked = selectLane(candidates, lane, laneSize(lane), env.MAX_PER_COMPANY);
       if (picked.length === 0) continue; // Nothing clears the bar — the next view tries again.
       await tx
         .insert(dailyPicks)

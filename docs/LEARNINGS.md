@@ -1385,3 +1385,21 @@ boundaries depend on the server locale). Pinned by a test using the real locatio
 
 **Rule.** Any filter over free-text places: Unicode-aware boundaries, and run it over the real column
 before trusting it — the false positive was in the first 10 rows of output.
+
+---
+
+## 2026-10-11 — Rank-based tiers mean "strong" is relative; gate on absolute fit before trusting it
+
+**Problem.** Today's "very best" included roles the candidate couldn't get (location fit 60 at overall
+89), and for a designer profile, "strong" Head-of-Engineering roles at role fit 30.
+
+**Root cause.** Two things compound. The model's `overall` isn't derived from its own dimensions, so a
+poor location fit barely dents it. And tiers are rank-based — "strong" is the top 15% of *your*
+corpus — so when the corpus is mostly the wrong kind of job, the top 15% is still the wrong kind.
+
+**Fix.** Gate picks on absolute dimension scores (role, seniority, location ≥ 70) and rank by a pick
+score that weighs feasibility. Measured the free-text alternative first: "dealbreaker" appears in 45%
+of red flags, mostly hedged, so it can't be a filter.
+
+**Rule.** Relative labels (tiers, percentiles) choose *order*; absolute measures decide *eligibility*.
+And before filtering on model prose, count how often the phrase actually appears.

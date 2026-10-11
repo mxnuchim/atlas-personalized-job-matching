@@ -2277,3 +2277,57 @@ Flutterwave, Kuda, PiggyVest etc. use other systems; a fuller Nigeria lane needs
 **Files.** `src/lib/{lanes,queue,schedule,env}.ts`, `src/lib/lanes.test.ts`, `src/db/schema/daily-picks.ts`,
 `drizzle/0011_daily_picks.sql`, `src/db/queries/{daily,matches}.ts`, `src/app/(app)/today/page.tsx`,
 `src/components/daily-queue.tsx`, `src/pipeline/run.ts`, `.github/workflows/pipeline.yml`, `.env.example`, docs
+
+---
+
+## 2026-10-11 — Research: Nigerian job sources (read-only)
+
+**Context.** The Nigeria lane holds ~5 roles, all Moniepoint. Where else do Nigerian employers publish?
+
+**Action.** Probed ~130 Nigerian employers × 9 public job feeds (Greenhouse, Lever, Ashby, Workable,
+SmartRecruiters, Recruitee, BambooHR, Breezy, Personio); read titles, locations, descriptions and
+posting dates; web-searched the big names that matched nothing.
+
+**Result.**
+- **New, verified feeds with Nigerian roles:** Workable — Renmoney (72 in NG), FairMoney (39), Kuda (12);
+  BambooHR — Flutterwave (`flutterwavego`, 13), Chowdeck (17); SmartRecruiters — Vendease (5), PalmPay,
+  Raenest (1 each). ~20 engineering roles in Nigeria among them (SRE, DevOps, Cloud/Infra, Principal,
+  backend, data/ML).
+- **All carry full descriptions:** Workable in one call (`/api/v1/widget/accounts/{slug}?details=true`);
+  BambooHR `/careers/list` + `/careers/{id}/detail`; SmartRecruiters `/v1/companies/{id}/postings` +
+  `/postings/{id}` (jobAd sections).
+- **Age is the blocker:** of 18 such engineering roles, only 3 were posted ≤ 30 days (Atlas's ingest
+  cutoff); 12 ≤ 180 days. Nigerian employers keep requisitions open far longer.
+- **Workable is Cloudflare rate-limited** (HTTP 429, error 1015) under burst — fine at one request per
+  board per day, but the fetcher must back off.
+- **Not reachable via a public feed:** Paystack (JS-rendered own careers page), Interswitch (email/
+  LinkedIn), PiggyVest (SeamlessHiring, HTML only). Name collisions to avoid: Ashby "decagon"/"lemonade",
+  Greenhouse "carbon"/"prospa"/"branch" are non-Nigerian companies.
+
+**Files.** none — research only.
+
+---
+
+## 2026-10-11 — Today picks: the best roles you can actually get
+
+**Context.** Nigerian sources dropped (Oliver's call). Instead: make the existing Today picks better.
+Data on the would-be picks showed the "very best" included a flagged dealbreaker (Stripe), visa/
+location mismatches at 88-89 (Vercel loc 60, Coinbase, Linro), 10+-year Head-of-Engineering roles,
+Wheely ×3 near-duplicates and Stripe ×4.
+
+**Action.**
+- `lib/picks.ts` `selectLane`: gate role/seniority/location fit ≥ 70; exclude explicit no-sponsorship
+  only; rank by pick score 0.60·overall + 0.25·location + 0.15·seniority + freshness (+2 ≤7d, +1 ≤14d,
+  −3 >180d); collapse near-duplicate titles per employer (level words stripped, Jaccard ≥ 0.6).
+- `MAX_PER_COMPANY` default 4 → 2 (env, workflow, .env.example). `ensureDailyPicks` uses `selectLane`.
+- Calibration findings: the model's overall is not computed from the dimensions; "dealbreaker" appears
+  in 538 / 1,198 eligible flags (mostly hedged) — unusable as a filter; location fit is the reliable signal.
+
+**Result.** 411 tests (9 new, built from the real cases). Dry run — Manuchim: Global 20 picks / 17
+companies, every pick location fit ≥ 85 (was 4 mismatches); Nigeria 4. Alabi: Global 11, Nigeria 0 —
+her rank-based "strong" tier was mostly engineering roles at role fit 30; 1,177 / 1,221 of her eligible
+matches have role fit < 70, so 11 genuine designer roles is the honest list. Moniepoint Staff Product
+Designer just misses (seniority 65) — the gate to lower if stretch roles are wanted.
+
+**Files.** `src/lib/picks.ts`, `src/lib/picks.test.ts`, `src/db/queries/daily.ts`, `src/lib/env.ts`,
+`src/lib/env.test.ts`, `src/app/(app)/today/page.tsx`, `.github/workflows/pipeline.yml`, `.env.example`, docs

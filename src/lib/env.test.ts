@@ -28,7 +28,7 @@ describe("env", () => {
     const env = await loadWith({});
     expect(env.LLM_MAX_CONCURRENCY).toBe(3);
     expect(env.DAILY_QUEUE_SIZE).toBe(20);
-    expect(env.MAX_PER_COMPANY).toBe(4);
+    expect(env.MAX_PER_COMPANY).toBe(2);
   });
 
   it("treats a blank variable exactly like an absent one", async () => {

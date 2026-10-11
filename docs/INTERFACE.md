@@ -482,9 +482,14 @@ Today is two lists you can finish, not a feed. **Nigeria** (`DAILY_NIGERIA_SIZE`
 - **The day starts at the run hour** (`queueDay`), not midnight — the morning run builds the
   picks from what it just scored, and the email lists exactly those. First view of the day
   builds them if the run hasn't; an advisory lock stops the two picking twice.
-- **"The very best", literally**: best fit first, stretch-tier excluded, variety across
-  employers preferred but never at the cost of an empty slot (`capPerCompany` `fill`). A lane
-  shows fewer than its size rather than padding — "5 of 10" with all 5 good beats 10 with 5 weak.
+- **"The very best" means roles you can get** (`selectLane`, lib/picks.ts). Strong/possible
+  only; role, seniority and location fit each ≥ 70; sponsorship stated as unavailable excludes.
+  Ranked by a pick score — 0.60·overall + 0.25·location + 0.15·seniority + freshness — because
+  the model's overall alone rated location-60 roles at 89. Near-duplicate titles at one
+  employer collapse; at most `MAX_PER_COMPANY` (2) per employer, with `fill` so a one-employer
+  lane still fills. A lane shows fewer than its size rather than padding.
+- **Never exclude on the word "dealbreaker".** The model writes it for ~45% of roles, mostly
+  hedged; only explicit "does not sponsor"-style statements are hard exclusions.
 - **Lane = location**, Unicode word boundaries (`laneOf`): a role is Nigerian when it names
   Nigeria or a Nigerian city, including multi-country remote roles that list Nigeria. EMEA or
   "Remote — Africa" is global — it might include Nigeria, but the posting hasn't said so.

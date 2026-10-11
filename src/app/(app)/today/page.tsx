@@ -116,7 +116,7 @@ export default async function TodayPage({
               title={lane === "nigeria" ? "No Nigerian role cleared the bar today" : "Nothing cleared the bar today"}
               description={
                 lane === "nigeria"
-                  ? "Only strong and possible fits make the list, and Atlas reads few Nigerian employers' boards yet. Nothing is padded in to fill the slots."
+                  ? "Only roles you can realistically get make the list — strong or possible fits that also clear role, seniority and location fit. Atlas reads few Nigerian employers' boards, and nothing is padded in to fill the slots."
                   : `The next run is at ${nextRun}. New matches will appear here, best fit first.`
               }
             />
